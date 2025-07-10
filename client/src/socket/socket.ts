@@ -5,3 +5,4 @@ const SERVER_URL = import.meta.env.DEV
     : "https://uno-backend.onrender.com";
 
 export const socket = io(SERVER_URL, { transports: ["websocket"] });
+export default socket;

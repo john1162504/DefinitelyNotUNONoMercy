@@ -15,7 +15,7 @@ function CreateRoomPage() {
     const [specialRulesEnabled, setSpecialRulesEnabled] = useState(false);
 
     useEffect(() => {
-        socket.on("room_created", ({ roomId }) => {
+        socket.on("room_created", ({ roomId }: { roomId: string }) => {
             navigate(`/room/${roomId}`, { state: { playerName: name } });
         });
 
