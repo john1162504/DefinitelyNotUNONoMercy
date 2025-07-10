@@ -1,5 +1,7 @@
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:3000");
+const SERVER_URL = import.meta.env.DEV
+    ? "http://localhost:3001"
+    : "https://uno-backend.onrender.com";
 
-export default socket;
+export const socket = io(SERVER_URL, { transports: ["websocket"] });
