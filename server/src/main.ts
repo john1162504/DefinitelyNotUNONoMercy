@@ -28,6 +28,8 @@ io.on("connection", (socket) => {
     handleGameSockets(io, socket);
 });
 
-server.listen(3000, () => {
-    console.log("🚀 Server listening on http://localhost:3000");
+// Use environment-provided port or default to 3001 locally
+const PORT = parseInt(process.env.PORT ?? "3001", 10);
+server.listen(PORT, () => {
+    console.log(`🚀 Server listening on port ${PORT}`);
 });
