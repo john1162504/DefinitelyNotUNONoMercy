@@ -10,7 +10,9 @@ const CARD_SPACING = 0.45; // as a fraction of card width
 const COLOR_ORDER = ["red", "yellow", "green", "blue", "wild"];
 
 const cardImgPath = (card: Card) =>
-    `/assets/Cards/individual/${card.color}/${card.value}_${card.color}.png`;
+    `${import.meta.env.BASE_URL}assets/Cards/individual/${card.color}/${
+        card.value
+    }_${card.color}.png`;
 
 interface UserHandProps {
     hand: Card[];

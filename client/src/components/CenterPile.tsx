@@ -2,9 +2,13 @@ import { Card } from "./ui/card";
 import type { Card as UNO } from "@/types";
 import { RotateCcw, RotateCw } from "lucide-react";
 
-const CARD_BACK_PATH = "/assets/Cards/individual/card back/card_back.png";
+const CARD_BACK_PATH = `${
+    import.meta.env.BASE_URL
+}assets/Cards/individual/card back/card_back.png`;
 const cardImgPath = (card: UNO) =>
-    `/assets/Cards/individual/${card.color}/${card.value}_${card.color}.png`;
+    `${import.meta.env.BASE_URL}assets/Cards/individual/${card.color}/${
+        card.value
+    }_${card.color}.png`;
 
 interface CenterPileProps {
     deckCount: number;

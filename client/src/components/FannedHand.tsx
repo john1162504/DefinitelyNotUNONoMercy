@@ -5,7 +5,9 @@ const CARD_HEIGHT_RATIO = 1.3; // Card height = cardWidth * ratio
 const ARC_RADIUS_RATIO = 0.05; // Arc radius = tableWidth * ratio
 const DEFAULT_MARGIN_RATIO = 0.05; // Margin between icon and hand, as tableWidth * ratio
 const MAX_CARDS = 25;
-const CARD_BACK_PATH = "/assets/Cards/individual/card back/card_back.png";
+const CARD_BACK_PATH = `${
+    import.meta.env.BASE_URL
+}assets/Cards/individual/card back/card_back.png`;
 
 interface FannedHandProps {
     numCards: number;
@@ -61,8 +63,8 @@ const FannedHand: React.FC<FannedHandProps> = ({
 
     // Find the base of the hand (middle card)
     const baseIdx = Math.floor(numCards / 2);
-    const baseX = cards[baseIdx].x;
-    const baseY = cards[baseIdx].y;
+    const baseX = cards[baseIdx]?.x;
+    const baseY = cards[baseIdx]?.y;
 
     // Bounding box for hand container
     const minX = Math.min(...cards.map((c) => c.x));

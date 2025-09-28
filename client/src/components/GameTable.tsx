@@ -59,7 +59,9 @@ export default function GameTable({
                 ref={tableRef}
                 className="absolute inset-0 rounded-full"
                 style={{
-                    backgroundImage: "url('/assets/Tables/table_green.png')",
+                    backgroundImage: `url('${
+                        import.meta.env.BASE_URL
+                    }assets/Tables/table_green.png')`,
                     backgroundSize: "contain",
                     backgroundPosition: "center",
                     backgroundRepeat: "no-repeat",
