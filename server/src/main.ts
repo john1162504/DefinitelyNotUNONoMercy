@@ -4,6 +4,7 @@ import cors from "cors";
 import { Server } from "socket.io";
 import { handleRoomSockets } from "./controllers/LobbyController";
 import { handleGameSockets } from "./controllers/GameController";
+import { handleConnection } from "./controllers/ConnectionController";
 
 const app = express();
 const server = http.createServer(app);
@@ -22,8 +23,19 @@ app.get("/", (_req: Request, res: Response) => {
     res.send("UNO server is running!");
 });
 
+io.use((socket, next) => {
+    const sessionId = socket.handshake.auth.sessionId;
+    if (!sessionId) {
+        return next(new Error("No sessionId provided"));
+    }
+    socket.data.sessionId = sessionId; // persist across reconnects
+    next();
+});
+
 io.on("connection", (socket) => {
-    console.log(`🟢 Socket connected: ${socket.id}`);
+    console.log(`🟢 Socket connected: ${socket.data.sessionId}`);
+
+    handleConnection(io, socket);
     handleRoomSockets(io, socket);
     handleGameSockets(io, socket);
 });

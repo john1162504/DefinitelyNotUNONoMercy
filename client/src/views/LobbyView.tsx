@@ -19,7 +19,9 @@ export default function LobbyView({
     onStartGame,
     handleDisconect,
 }: LobbyViewProps) {
-    const isHost = roomState.host === socket.id;
+    const sessionId = (socket.auth as { sessionId?: string })?.sessionId;
+
+    const isHost = roomState.host === sessionId;
 
     return (
         <Card className="w-full max-w-5xl p-6 relative aspect-square">

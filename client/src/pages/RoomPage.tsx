@@ -1,21 +1,9 @@
 import { useLocation, useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import LobbyView from "../views/LobbyView";
 import GameView from "../views/GameView";
 import socket from "../socket/socket";
 import type { RoomState, Card, GameState } from "../types";
-
-function playCards(roomId: string, cards: Card[], chosenColor?: String) {
-    socket.emit("play_card", { roomId, cards, chosenColor });
-}
-
-function takeDraw(roomId: string, count?: number) {
-    socket.emit("take_draw", { roomId, count });
-}
-
-function startGame(roomId: string) {
-    socket.emit("starting_game", roomId);
-}
 
 function RoomPage() {
     const navigate = useNavigate();
@@ -32,17 +20,49 @@ function RoomPage() {
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [hand, setHand] = useState<Card[]>([]);
 
-    const handleDisconect = () => {
-        socket.emit("leaving_room");
-        navigate("/");
-    };
+    const memoisedHand = useMemo(() => hand, [hand]);
+
+    const memoisedGameState = useMemo(() => gameState, [gameState]);
+
+    const memoisedRoomState = useMemo(() => roomState, [roomState]);
+
+    const playCards = useCallback(
+        (cards: Card[], chosenColor?: string) => {
+            if (roomId) {
+                socket.emit("play_card", { roomId, cards, chosenColor });
+            }
+        },
+        [roomId]
+    );
+
+    const takeDraw = useCallback(
+        (count?: number) => {
+            if (roomId) {
+                socket.emit("take_draw", { roomId, count });
+            }
+        },
+        [roomId]
+    );
+
+    const startGame = useCallback(() => {
+        if (roomId) {
+            socket.emit("starting_game", roomId);
+        }
+    }, [roomId]);
+
+    const handleDisconnect = useCallback(() => {
+        if (roomId && playerName) {
+            socket.emit("leaving_room", { roomId, playerName });
+        }
+        setRoomState(null);
+        setGameState(null);
+        setHand([]);
+    }, [roomId, playerName]);
 
     function handleBackToLobby() {
         setGameOver(null);
         setGameState(null);
         setHand([]);
-        // Do NOT emit "leaving_room" or navigate!
-        // Optionally, fetch fresh room info if your backend supports it.
     }
 
     useEffect(() => {
@@ -64,8 +84,6 @@ function RoomPage() {
             setRoomState(roomState);
         };
 
-        console.log("ROOM UPDATE", roomState);
-
         socket.on("room_update", handleRoomUpdate);
 
         return () => {
@@ -77,12 +95,15 @@ function RoomPage() {
         const handleStartGame = ({
             hand,
             gameState,
+            roomState,
         }: {
             hand: Card[];
             gameState: GameState;
+            roomState: RoomState;
         }) => {
             setHand(hand);
             setGameState(gameState);
+            setRoomState(roomState);
         };
         socket.on("game_started", handleStartGame);
 
@@ -125,13 +146,66 @@ function RoomPage() {
     }, []);
 
     useEffect(() => {
+        const handleRoomReconnect = (roomState: RoomState) => {
+            setRoomState(roomState);
+        };
+
+        socket.on("current_room_state", handleRoomReconnect);
+        return () => {
+            socket.off("current_room_state", handleRoomReconnect);
+        };
+    }, []);
+
+    useEffect(() => {
+        const handleGameReconnect = ({
+            gameState,
+            hand,
+            roomState,
+        }: {
+            gameState: GameState;
+            hand: Card[];
+            roomState: RoomState;
+        }) => {
+            setRoomState(roomState);
+            setGameState(gameState);
+            setHand(hand);
+        };
+
+        socket.on("current_game_state", handleGameReconnect);
+        return () => {
+            socket.off("current_game_state", handleGameReconnect);
+        };
+    }, []);
+
+    useEffect(() => {
+        function emitReconnect() {
+            const sessionId = (socket.auth as { sessionId?: string })
+                ?.sessionId;
+
+            if (roomId && sessionId) {
+                console.log("🔄 Rejoining room:", roomId);
+                socket.emit("request_current_room_state", { roomId });
+                socket.emit("request_current_game_state", { roomId });
+            }
+        }
+
+        socket.on("connect", emitReconnect);
+
+        return () => {
+            socket.off("connect", emitReconnect);
+        };
+    }, [roomId]);
+
+    useEffect(() => {
         if (!errorMsg) return;
         const timer = setTimeout(() => setErrorMsg(null), 3500);
         return () => clearTimeout(timer);
     }, [errorMsg]);
 
-    if (!roomState) return null;
-
+    if (!roomState) {
+        console.log("no room");
+        return null;
+    }
     return (
         <main className="min-h-screen flex items-center justify-center px-4">
             {errorMsg && (
@@ -144,25 +218,23 @@ function RoomPage() {
             )}
 
             {/* Show GameView if game started and not ended */}
-            {roomState.isStarted && gameState && !gameOver ? (
+            {memoisedRoomState?.isStarted && memoisedGameState ? (
                 <GameView
-                    hand={hand}
-                    gameState={gameState}
+                    hand={memoisedHand}
+                    gameState={memoisedGameState}
                     roomId={roomId!}
-                    roomState={roomState}
-                    onPlayCard={(cards: Card[], chosenColor?: String) =>
-                        playCards(roomId!, cards, chosenColor)
-                    }
-                    onTakeDraw={(count: number) => takeDraw(roomId!, count)}
+                    roomState={memoisedRoomState}
+                    onPlayCard={playCards}
+                    onTakeDraw={takeDraw}
                 />
             ) : (
                 // Show lobby if not started or if gameOver is visible
                 <LobbyView
-                    roomState={roomState}
+                    roomState={memoisedRoomState!}
                     roomId={roomId || ""}
                     playerName={playerName || ""}
-                    onStartGame={() => startGame(roomId!)}
-                    handleDisconect={handleDisconect}
+                    onStartGame={startGame}
+                    handleDisconect={handleDisconnect}
                 />
             )}
 

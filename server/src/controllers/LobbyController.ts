@@ -4,7 +4,7 @@ import { startGame } from "./GameController";
 
 const roomStates: Record<string, RoomState> = {};
 function generateRoomId(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
 function handleRoomSockets(io: Server, socket: Socket) {
@@ -20,11 +20,12 @@ function handleRoomSockets(io: Server, socket: Socket) {
             const roomId = generateRoomId();
 
             const player: Player = {
-                id: socket.id,
+                id: socket.data.sessionId,
+                socketId: socket.id,
                 name: playerName,
             };
             const roomState: RoomState = {
-                host: socket.id,
+                host: socket.data.sessionId,
                 players: [],
                 rule: gameRule,
                 isStarted: false,
@@ -53,12 +54,19 @@ function handleRoomSockets(io: Server, socket: Socket) {
                 return;
             }
 
-            if (roomStates[roomId].players.some((p) => p.id === socket.id)) {
+            if (
+                roomStates[roomId].players.some(
+                    (p) => p.id === socket.data.sessionId
+                )
+            ) {
                 return;
             }
-            const newPlayer = { id: socket.id, name: playerName };
+            const newPlayer = {
+                id: socket.data.sessionId,
+                socketId: socket.id,
+                name: playerName,
+            };
             roomStates[roomId].players.push(newPlayer);
-            console.log(roomStates[roomId].players);
             socket.join(roomId);
             io.to(roomId).emit("room_update", roomStates[roomId]);
 
@@ -70,32 +78,33 @@ function handleRoomSockets(io: Server, socket: Socket) {
         console.log("starting_game");
         let roomState = roomStates[roomId];
 
-        if (roomState.isStarted) {
+        if (roomState?.isStarted) {
             socket.emit("error_game_start", {
                 message: "Game has already started",
             });
             return;
         }
 
-        if (roomState.players.length < 2) {
+        if (roomState?.players.length < 2) {
             socket.emit("error_game_start", {
                 message: "Need at least 2 players to start",
             });
             return;
         }
-
         startGame(io, roomState, roomId);
-        roomState.isStarted = true;
 
-        io.to(roomId).emit("room_update", roomState);
+        // io.to(roomId).emit("room_update", roomState);
         console.log(`Room ${roomId}: Game started`);
     });
 
-    socket.on("leaving_room", () => {
+    socket.on("leaving_room", ({ roomId, playerName }) => {
+        console.log(`🚪 ${playerName} left room ${roomId}`);
         for (const roomId in roomStates) {
             const updatedPlayers = roomStates[roomId].players.filter(
-                (p) => p.id !== socket.id
+                (p) => p.id !== socket.data.sessionId
             );
+
+            socket.leave(roomId);
 
             if (updatedPlayers.length === 0) {
                 delete roomStates[roomId];
@@ -106,7 +115,7 @@ function handleRoomSockets(io: Server, socket: Socket) {
             }
         }
 
-        console.log(`Socket ${socket.id} disconnected`);
+        console.log(`Socket ${socket.data.sessionId} disconnected`);
     });
 }
 

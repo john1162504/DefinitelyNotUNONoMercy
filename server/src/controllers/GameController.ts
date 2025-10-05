@@ -45,9 +45,10 @@ function startGame(io: Server, roomState: RoomState, roomId: string) {
     for (const player of roomState.players) {
         const playerHand = hands[player.id];
 
-        io.to(player.id).emit("game_started", {
+        io.to(player.socketId).emit("game_started", {
             hand: playerHand,
             gameState: publicGameState,
+            roomState: roomState,
         });
     }
 }
@@ -68,7 +69,7 @@ function handleGameSockets(io: Server, socket: Socket) {
 
             if (!game || cards.length === 0) return;
 
-            const playerId = socket.id;
+            const playerId = socket.data.sessionId;
             const currentPlayer = game.players[game.currentPlayerIndex];
 
             if (currentPlayer.id !== playerId) {
@@ -268,7 +269,7 @@ function handleGameSockets(io: Server, socket: Socket) {
             const game = gameStates[roomId];
             if (!game) return;
 
-            const playerId = socket.id;
+            const playerId = socket.data.sessionId;
             const currentPlayer = game.players[game.currentPlayerIndex];
 
             if (currentPlayer.id !== playerId) {
@@ -426,7 +427,7 @@ function broadcastGameState(io: Server, game: GameState) {
     const { hands, ...publicGameState } = game;
 
     for (const player of game.players) {
-        io.to(player.id).emit("game_update", {
+        io.to(player.socketId).emit("game_update", {
             hand: hands[player.id],
             gameState: publicGameState,
         });
