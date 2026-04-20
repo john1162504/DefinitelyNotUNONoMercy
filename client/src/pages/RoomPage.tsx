@@ -1,4 +1,4 @@
-import { useLocation, useParams, useNavigate } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import LobbyView from "../views/LobbyView";
 import GameView from "../views/GameView";
@@ -6,7 +6,6 @@ import socket from "../socket/socket";
 import type { RoomState, Card, GameState } from "../types";
 
 function RoomPage() {
-    const navigate = useNavigate();
     const { roomId } = useParams<{ roomId: string }>();
     const location = useLocation();
     const playerName = (location.state as { playerName: string })?.playerName;
