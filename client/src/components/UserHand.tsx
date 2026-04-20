@@ -35,6 +35,11 @@ const UserHand: React.FC<UserHandProps> = ({
     tableWidth,
     onPlayCard,
 }) => {
+    // Safety check for hand
+    if (!hand || hand.length === 0) {
+        return null;
+    }
+
     // Responsive card sizing
     const cardWidth = Math.max(30, tableWidth * CARD_WIDTH_RATIO);
     const cardHeight = cardWidth * CARD_HEIGHT_RATIO;
@@ -44,7 +49,9 @@ const UserHand: React.FC<UserHandProps> = ({
 
     // Selected cards state
     const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-    const selectedCards = selectedIndices.map((idx) => sortedHand[idx]);
+    const selectedCards = selectedIndices
+        .map((idx) => sortedHand[idx])
+        .filter(Boolean);
 
     // Color picker state
     const [showColorPicker, setShowColorPicker] = useState(false);
@@ -53,7 +60,7 @@ const UserHand: React.FC<UserHandProps> = ({
     const maxHandWidth = tableWidth * 0.95;
     const totalWidth = Math.min(
         cardWidth + (HAND_MAX - 1) * cardWidth * CARD_SPACING,
-        maxHandWidth
+        maxHandWidth,
     );
     const actualSpacing =
         sortedHand.length > 1
@@ -99,17 +106,17 @@ const UserHand: React.FC<UserHandProps> = ({
                 </div>
             )}
 
-            <div className="absolute bottom-1 z-30 flex flex-col items-center pointer-events-none w-full">
+            <div className="relative flex flex-col items-center justify-center pointer-events-none w-full py-8">
                 {/* Action Buttons */}
                 <div className="mb-2 pointer-events-auto flex gap-2">
                     <button
-                        className="rounded px-2 py-1 border"
+                        className="rounded px-2 py-1 border bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 disabled:cursor-not-allowed"
                         onClick={() => setSelectedIndices([])}
                     >
                         Reset
                     </button>
                     <button
-                        className="rounded px-2 py-1 border"
+                        className="rounded px-2 py-1 border bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                         onClick={() => {
                             if (hasWild) {
                                 setShowColorPicker(true);
@@ -155,8 +162,8 @@ const UserHand: React.FC<UserHandProps> = ({
                                 if (selectedIndices.includes(i)) {
                                     setSelectedIndices(
                                         selectedIndices.filter(
-                                            (idx) => idx !== i
-                                        )
+                                            (idx) => idx !== i,
+                                        ),
                                     );
                                 } else {
                                     setSelectedIndices([...selectedIndices, i]);

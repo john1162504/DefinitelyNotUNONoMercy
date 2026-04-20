@@ -46,78 +46,94 @@ export default function GameTable({
     }, []);
 
     // Find the user's position and rotate the array so "you" are at the bottom
+    // socket.id is always a string, so we just compare directly
     const userIdx = players.findIndex((p) => p.id === socket.id);
-    const orderedPlayers = [
-        ...players.slice(userIdx),
-        ...players.slice(0, userIdx),
-    ];
+    const orderedPlayers =
+        userIdx >= 0
+            ? [...players.slice(userIdx), ...players.slice(0, userIdx)]
+            : players;
 
     return (
-        <div className="relative w-full aspect-[16/9] mx-auto">
-            {/* Table background */}
+        <div className="relative w-full mx-auto">
+            {/* Table background - adjusted height to leave room for user hand */}
             <div
-                ref={tableRef}
-                className="absolute inset-0 rounded-full"
+                className="relative w-full aspect-[16/9]"
                 style={{
-                    backgroundImage: `url('${
-                        import.meta.env.BASE_URL
-                    }assets/Tables/table_green.png')`,
-                    backgroundSize: "contain",
-                    backgroundPosition: "center",
-                    backgroundRepeat: "no-repeat",
+                    position: "relative",
                 }}
             >
-                <CenterPile
-                    deckCount={deck.length}
-                    topDiscard={discardPile[discardPile.length - 1]}
-                    direction={gameState.direction}
-                    onTakeDraw={onTakeDraw}
-                />
+                <div
+                    ref={tableRef}
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                        backgroundImage: `url('${
+                            import.meta.env.BASE_URL
+                        }assets/Tables/table_green.png')`,
+                        backgroundSize: "contain",
+                        backgroundPosition: "center",
+                        backgroundRepeat: "no-repeat",
+                    }}
+                >
+                    <CenterPile
+                        deckCount={deck.length}
+                        topDiscard={discardPile[discardPile.length - 1]}
+                        direction={gameState.direction}
+                        onTakeDraw={onTakeDraw}
+                    />
 
-                {/* Other Player positions and hands */}
-                {orderedPlayers.map((player, idx) => {
-                    const baseAngle = 90;
-                    const angle = baseAngle + (360 / players.length) * idx;
-                    const rad = (angle * Math.PI) / 180;
-                    const xRadius = 46;
-                    const yRadius = 42;
-                    const xPercent = 50 + Math.cos(rad) * xRadius; // x & y use to determind position regarding to the table
-                    const yPercent = 50 + Math.sin(rad) * yRadius;
+                    {/* Other Player positions and hands */}
+                    {orderedPlayers.map((player, idx) => {
+                        const baseAngle = 90;
+                        const angle = baseAngle + (360 / players.length) * idx;
+                        const rad = (angle * Math.PI) / 180;
+                        const xRadius = 46;
+                        const yRadius = 42;
+                        const xPercent = 50 + Math.cos(rad) * xRadius; // x & y use to determind position regarding to the table
+                        const yPercent = 50 + Math.sin(rad) * yRadius;
 
-                    return (
-                        <Fragment key={player.id}>
-                            <PlayerSeat
-                                name={player.name}
-                                isYou={player.id === socket.id}
-                                isHost={player.id === hostId}
-                                isCurrentTurn={
-                                    gameState.players[
-                                        gameState.currentPlayerIndex
-                                    ].id === player.id
-                                }
-                                xPercent={xPercent}
-                                yPercent={yPercent}
-                            />
-                            {player.id !== socket.id && (
-                                <FannedHand
-                                    numCards={
+                        return (
+                            <Fragment key={player.id}>
+                                <PlayerSeat
+                                    name={player.name}
+                                    isYou={player.id === socket.id}
+                                    isHost={player.id === hostId}
+                                    isCurrentTurn={
+                                        gameState.players[
+                                            gameState.currentPlayerIndex
+                                        ].id === player.id
+                                    }
+                                    cardCount={
                                         gameState.playerCardCounter[player.id]
                                     }
                                     xPercent={xPercent}
                                     yPercent={yPercent}
-                                    tableWidth={tableSize.width}
                                 />
-                            )}
-                        </Fragment>
-                    );
-                })}
+                                {player.id !== socket.id && (
+                                    <FannedHand
+                                        numCards={
+                                            gameState.playerCardCounter[
+                                                player.id
+                                            ]
+                                        }
+                                        xPercent={xPercent}
+                                        yPercent={yPercent}
+                                        tableWidth={tableSize.width}
+                                    />
+                                )}
+                            </Fragment>
+                        );
+                    })}
+                </div>
             </div>
 
-            <UserHand
-                hand={hand}
-                tableWidth={tableSize.width}
-                onPlayCard={onPlayCard}
-            />
+            {/* User hand positioned absolutely below the table */}
+            <div className="relative w-full">
+                <UserHand
+                    hand={hand}
+                    tableWidth={tableSize.width}
+                    onPlayCard={onPlayCard}
+                />
+            </div>
         </div>
     );
 }

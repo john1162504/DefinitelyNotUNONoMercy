@@ -20,7 +20,7 @@ type Value =
     | "reverse+4"
     | "+6"
     | "+10"
-    | "colorRolette";
+    | "colorRoulette";
 
 interface Card {
     color: Color;
@@ -55,12 +55,8 @@ interface GameState {
     playerCardCounter: Record<string, number>;
     direction: 1 | -1; // 1 for clockwise, -1 for counter-clockwise
     pendingDrawCount?: number;
-    miniumDrawValue?: {
-        "+2"?: 2;
-        "+4"?: 4;
-        "+6"?: 6;
-        "+10"?: 10;
-    };
+    miniumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
+    activeColor?: "red" | "green" | "blue" | "yellow";
 }
 
 export type { Color, Value, Card, Player, RoomState, GameRule, GameState };

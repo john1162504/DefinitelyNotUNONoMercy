@@ -67,10 +67,24 @@ function handleGameSockets(io: Server, socket: Socket) {
         }) => {
             const game = gameStates[roomId];
 
-            if (!game || cards.length === 0) return;
+            // Safety checks
+            if (!game) {
+                socket.emit("error", { message: "Game not found." });
+                return;
+            }
+
+            if (!cards || cards.length === 0) {
+                socket.emit("error", { message: "No cards selected." });
+                return;
+            }
 
             const playerId = socket.data.sessionId;
             const currentPlayer = game.players[game.currentPlayerIndex];
+
+            if (!currentPlayer) {
+                socket.emit("error", { message: "Invalid game state." });
+                return;
+            }
 
             if (currentPlayer.id !== playerId) {
                 socket.emit("error", { message: "Not your turn." });
@@ -79,11 +93,16 @@ function handleGameSockets(io: Server, socket: Socket) {
 
             const playerHand = game.hands[playerId];
 
+            if (!playerHand) {
+                socket.emit("error", { message: "Hand not found." });
+                return;
+            }
+
             // Make sure all cards exist in hand
             const isEveryCardInHand = cards.every((card) =>
                 playerHand.some(
-                    (c) => c.color === card.color && c.value === card.value
-                )
+                    (c) => c.color === card.color && c.value === card.value,
+                ),
             );
 
             if (!isEveryCardInHand) {
@@ -112,7 +131,7 @@ function handleGameSockets(io: Server, socket: Socket) {
             // Remove cards from hand
             for (const card of cards) {
                 const index = playerHand.findIndex(
-                    (c) => c.color === card.color && c.value === card.value
+                    (c) => c.color === card.color && c.value === card.value,
                 );
                 if (index !== -1) playerHand.splice(index, 1);
                 game.discardPile.push(card); // push each card to discard pile
@@ -141,7 +160,7 @@ function handleGameSockets(io: Server, socket: Socket) {
                         game,
                         roomId,
                         currentPlayer,
-                        2
+                        2,
                     );
                     game.hands[currentPlayer.id].push(...newCard);
                 }
@@ -206,17 +225,17 @@ function handleGameSockets(io: Server, socket: Socket) {
                 //Do nothing - player take antoehr turn
             } else if (cards[0].value === "discardAll") {
                 const discardCards = [...playerHand].filter(
-                    (c) => c.color === cards[0].color
+                    (c) => c.color === cards[0].color,
                 );
                 for (const card of discardCards) {
                     const index = playerHand.findIndex(
-                        (c) => c.color === card.color && c.value === card.value
+                        (c) => c.color === card.color && c.value === card.value,
                     );
                     if (index !== -1) playerHand.splice(index, 1);
                     game.discardPile.splice(
                         game.discardPile.length - 1,
                         0,
-                        card
+                        card,
                     );
                 }
             } else if (cards[0].value === "colorRoulette") {
@@ -231,7 +250,7 @@ function handleGameSockets(io: Server, socket: Socket) {
                         game,
                         roomId,
                         currentPlayer,
-                        1
+                        1,
                     )[0];
                     if (!newCard) break;
 
@@ -260,17 +279,27 @@ function handleGameSockets(io: Server, socket: Socket) {
             game.playerCardCounter[playerId] = playerHand.length;
 
             broadcastGameState(io, game);
-        }
+        },
     );
 
     socket.on(
         "take_draw",
         ({ roomId, count }: { roomId: string; count?: number }) => {
             const game = gameStates[roomId];
-            if (!game) return;
+
+            // Safety checks
+            if (!game) {
+                socket.emit("error", { message: "Game not found." });
+                return;
+            }
 
             const playerId = socket.data.sessionId;
             const currentPlayer = game.players[game.currentPlayerIndex];
+
+            if (!currentPlayer) {
+                socket.emit("error", { message: "Invalid game state." });
+                return;
+            }
 
             if (currentPlayer.id !== playerId) {
                 socket.emit("error", { message: "Not your turn." });
@@ -284,21 +313,21 @@ function handleGameSockets(io: Server, socket: Socket) {
                     game,
                     roomId,
                     currentPlayer,
-                    game.pendingDrawCount
+                    game.pendingDrawCount,
                 );
                 game.hands[playerId].push(...drawnCards);
                 game.playerCardCounter[playerId] += drawnCards.length;
                 game.pendingDrawCount = 0;
                 game.miniumDrawValue = undefined;
                 rotateBy(game, 1);
-            } else if (count) {
+            } else if (count && count > 0) {
                 // Draw cards depends on the count
                 const drawnCards = drawCard(
                     io,
                     game,
                     roomId,
                     currentPlayer,
-                    count
+                    count,
                 );
                 game.hands[playerId].push(...drawnCards);
                 game.playerCardCounter[playerId] += drawnCards.length;
@@ -310,7 +339,7 @@ function handleGameSockets(io: Server, socket: Socket) {
 
             // Update the game state for all players
             broadcastGameState(io, game);
-        }
+        },
     );
 }
 
@@ -331,7 +360,7 @@ function handleGameSockets(io: Server, socket: Socket) {
 function cardValidation(
     cards: Card[],
     game: PublicGameState,
-    chosenColor?: "red" | "green" | "blue" | "yellow"
+    chosenColor?: "red" | "green" | "blue" | "yellow",
 ): boolean {
     const topCard = game.discardPile[game.discardPile.length - 1];
 
@@ -369,7 +398,7 @@ function cardValidation(
                 ] >=
                 DRAW_CARD_STRENGTH[
                     game.miniumDrawValue as keyof typeof DRAW_CARD_STRENGTH
-                ]
+                ],
         );
         if (!isHigherThanTopCard) {
             return false;
@@ -403,7 +432,7 @@ function drawCard(
     game: GameState,
     roomId: string,
     player: Player,
-    numCards: number
+    numCards: number,
 ): Card[] {
     const drawnCards: Card[] = [];
     for (let i = 0; i < numCards; i++) {
@@ -453,7 +482,7 @@ function broadcastGameOver({
         ...(loser && { loser }),
     };
     for (const player of game.players) {
-        io.to(player.id).emit("game_over", payload);
+        io.to(player.socketId).emit("game_over", payload);
     }
 
     delete gameStates[roomId];

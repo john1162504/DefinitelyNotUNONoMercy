@@ -2,7 +2,7 @@ import type { GameState, RoomState, Card as UNO } from "../types";
 import { Card } from "../components/ui/card";
 import GameTable from "@/components/GameTable";
 import socket from "@/socket/socket";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 interface GameViewProps {
     roomId: string;
@@ -21,25 +21,34 @@ export default function GameView({
     onPlayCard,
     onTakeDraw,
 }: GameViewProps) {
-    const [showTurnMessage, setShowTurnMessage] = useState(false);
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    const isYourTurn = currentPlayer?.id === socket.id;
 
     useEffect(() => {
-        if (gameState.players[gameState.currentPlayerIndex]?.id === socket.id) {
-            setShowTurnMessage(true);
-            const timer = setTimeout(() => setShowTurnMessage(false), 2000); // auto-dismiss after 2s
+        if (isYourTurn) {
+            const timer = setTimeout(() => {}, 3000);
             return () => clearTimeout(timer);
         }
-    }, [gameState]);
+    }, [gameState.currentPlayerIndex, isYourTurn]);
 
     return (
         <>
-            {showTurnMessage && (
-                <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg z-50 animate-bounce">
-                    It's your turn!
+            {/* Your turn indicator */}
+            {isYourTurn && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-4 rounded-2xl shadow-2xl z-40 font-bold text-lg animate-pulse border-2 border-green-300">
+                    ✓ It's your turn! Play now!
                 </div>
             )}
 
-            <Card className="w-full max-w-5xl p-6 relative aspect-[16/9] overflow-visible">
+            {/* Opponent's turn indicator */}
+            {!isYourTurn && currentPlayer && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-4 rounded-2xl shadow-2xl z-40 font-semibold animate-bounce border-2 border-blue-300">
+                    🎮 <span className="font-bold">{currentPlayer.name}</span>'s
+                    turn
+                </div>
+            )}
+
+            <Card className="w-full max-w-5xl p-6 relative aspect-[16/9] overflow-visible mx-auto mt-[-100px]">
                 <div className="relative w-full h-full">
                     <GameTable
                         roomId={roomId}

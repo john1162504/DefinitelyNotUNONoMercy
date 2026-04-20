@@ -22,14 +22,26 @@ export default function LobbyView({
     const sessionId = (socket.auth as { sessionId?: string })?.sessionId;
 
     const isHost = roomState.host === sessionId;
+    const playersNeeded = Math.max(0, 2 - roomState.players.length);
 
     return (
-        <Card className="w-full max-w-5xl p-6 relative aspect-square">
-            <CardHeader className="text-center">
-                <CardTitle className="text-3xl font-bold">
-                    Room: {roomId}
+        <Card className="w-full max-w-2xl p-6">
+            <CardHeader className="text-center pb-4">
+                <CardTitle className="text-4xl font-bold mb-2">
+                    UNO No Mercy
                 </CardTitle>
-                <p className="text-muted-foreground">Welcome, {playerName}!</p>
+                <p className="text-xl text-gray-700">
+                    Room: <span className="font-mono font-bold">{roomId}</span>
+                </p>
+                <p className="text-muted-foreground">
+                    Welcome, <span className="font-semibold">{playerName}</span>
+                    !
+                </p>
+                {isHost && (
+                    <p className="text-sm text-blue-600 mt-2">
+                        👑 You are the host
+                    </p>
+                )}
             </CardHeader>
 
             {/* Player Table UI */}
@@ -41,12 +53,17 @@ export default function LobbyView({
 
             <CardContent className="w-full flex flex-col items-center max-w-sm mx-auto space-y-3 mt-6">
                 {isHost && roomState.players.length >= 2 ? (
-                    <Button className="w-full" onClick={onStartGame}>
-                        Start Game
+                    <Button
+                        className="w-full bg-green-600 hover:bg-green-700"
+                        onClick={onStartGame}
+                    >
+                        ▶ Start Game
                     </Button>
                 ) : (
                     <Button disabled className="w-full">
-                        Waiting for more players...
+                        {playersNeeded > 0
+                            ? `Waiting for ${playersNeeded} more player${playersNeeded !== 1 ? "s" : ""}...`
+                            : "Waiting for host to start..."}
                     </Button>
                 )}
 

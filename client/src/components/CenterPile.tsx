@@ -34,20 +34,27 @@ export default function CenterPile({
                 )}
             </div>
             <div className="flex gap-6 items-center">
-                <Card className="w-16 h-24 flex items-center justify-center p-0 relative">
-                    <img
-                        src={CARD_BACK_PATH}
-                        alt="Deck"
-                        className="w-full h-full object-contain cursor-pointer"
-                        onClick={() => onTakeDraw?.(1)}
-                        draggable={false}
-                    />
-                    {deckCount > 0 && (
-                        <span className="absolute bottom-1 left-2 text-xs font-bold bg-white/80 px-1 rounded">
-                            {deckCount}
-                        </span>
-                    )}
-                </Card>
+                <div
+                    className="group cursor-pointer"
+                    onClick={() => onTakeDraw?.(1)}
+                >
+                    <Card className="w-16 h-24 flex items-center justify-center p-0 relative group-hover:scale-110 transition-transform">
+                        <img
+                            src={CARD_BACK_PATH}
+                            alt="Deck"
+                            className="w-full h-full object-contain"
+                            draggable={false}
+                        />
+                        {deckCount > 0 && (
+                            <span className="absolute bottom-1 left-2 text-xs font-bold bg-white/80 px-1 rounded">
+                                {deckCount}
+                            </span>
+                        )}
+                    </Card>
+                    <p className="text-xs text-center mt-1 text-gray-600 font-semibold group-hover:text-blue-600">
+                        Click to Draw
+                    </p>
+                </div>
                 <Card className="w-16 h-24 flex items-center justify-center p-0 relative z-20">
                     <img
                         src={cardImgPath(topDiscard)}

@@ -27,7 +27,7 @@ function handleConnection(io: Server, socket: Socket) {
             } else {
                 player.socketId = socket.id;
                 console.log(
-                    `🔄 Player ${playerId} reconnected with new socketId ${socket.id}`
+                    `🔄 Player ${playerId} reconnected with new socketId ${socket.id}`,
                 );
             }
 
@@ -35,7 +35,7 @@ function handleConnection(io: Server, socket: Socket) {
 
             if (gameState) {
                 const gamePlayer = gameState.players.find(
-                    (p) => p.id === playerId
+                    (p) => p.id === playerId,
                 );
                 if (gamePlayer) {
                     gamePlayer.socketId = socket.id;
@@ -45,7 +45,7 @@ function handleConnection(io: Server, socket: Socket) {
             console.log("sending room state to", playerId);
             // Send the raw roomState (not wrapped in { roomState: ... })
             socket.emit("current_room_state", roomState);
-        }
+        },
     );
 
     socket.on(
@@ -82,12 +82,12 @@ function handleConnection(io: Server, socket: Socket) {
                 hand: gameState.hands[playerId],
                 roomState: roomState,
             });
-        }
+        },
     );
 
     socket.on("disconnect", (reason) => {
         console.log(
-            `🔴 User disconnected. sessionId: ${socket.data.sessionId}, reason: ${reason}`
+            `🔴 User disconnected. sessionId: ${socket.data.sessionId}, reason: ${reason}`,
         );
     });
 }

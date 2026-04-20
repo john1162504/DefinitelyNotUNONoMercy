@@ -32,7 +32,7 @@ function RoomPage() {
                 socket.emit("play_card", { roomId, cards, chosenColor });
             }
         },
-        [roomId]
+        [roomId],
     );
 
     const takeDraw = useCallback(
@@ -41,7 +41,7 @@ function RoomPage() {
                 socket.emit("take_draw", { roomId, count });
             }
         },
-        [roomId]
+        [roomId],
     );
 
     const startGame = useCallback(() => {
@@ -198,20 +198,28 @@ function RoomPage() {
 
     useEffect(() => {
         if (!errorMsg) return;
-        const timer = setTimeout(() => setErrorMsg(null), 3500);
+        const timer = setTimeout(() => setErrorMsg(null), 4000);
         return () => clearTimeout(timer);
     }, [errorMsg]);
 
     if (!roomState) {
-        console.log("no room");
-        return null;
+        return (
+            <main className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <p className="text-lg font-semibold">Loading room...</p>
+                </div>
+            </main>
+        );
     }
     return (
         <main className="min-h-screen flex items-center justify-center px-4">
             {errorMsg && (
-                <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded shadow z-50">
-                    {errorMsg}
-                    <button className="ml-4" onClick={() => setErrorMsg(null)}>
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-3 rounded shadow-lg z-50 max-w-sm">
+                    <p className="mb-2">{errorMsg}</p>
+                    <button
+                        className="text-sm underline hover:no-underline"
+                        onClick={() => setErrorMsg(null)}
+                    >
                         Dismiss
                     </button>
                 </div>
@@ -241,16 +249,16 @@ function RoomPage() {
             {/* End Game Overlay always appears if triggered */}
             {gameOver && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center gap-4">
+                    <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center gap-4 max-w-sm">
                         <h2 className="text-2xl font-bold text-center">
                             {gameOver.winner
                                 ? `🎉 ${gameOver.winner} wins!`
                                 : gameOver.loser
-                                ? `💥 ${gameOver.loser} is busted!`
-                                : "Game Over"}
+                                  ? `💥 ${gameOver.loser} is busted!`
+                                  : "Game Over"}
                         </h2>
                         <button
-                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                             onClick={handleBackToLobby}
                         >
                             Back to Lobby

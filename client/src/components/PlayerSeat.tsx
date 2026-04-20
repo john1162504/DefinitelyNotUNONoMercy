@@ -5,6 +5,7 @@ interface PlayerSeatProps {
     isYou: boolean;
     isHost: boolean;
     isCurrentTurn?: boolean;
+    cardCount?: number;
     xPercent?: number;
     yPercent?: number;
 }
@@ -14,6 +15,7 @@ function PlayerSeat({
     isYou,
     isHost,
     isCurrentTurn,
+    cardCount,
     xPercent,
     yPercent,
 }: PlayerSeatProps) {
@@ -39,6 +41,11 @@ function PlayerSeat({
                     {name}
                 </span>
             </div>
+            {cardCount !== undefined && (
+                <span className="text-xs font-bold bg-blue-500 text-white px-1.5 rounded-full mt-0.5">
+                    {cardCount}
+                </span>
+            )}
             {isYou && <span className="text-xs text-blue-500 mt-1">(You)</span>}
         </div>
     );

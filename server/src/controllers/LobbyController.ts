@@ -40,7 +40,7 @@ function handleRoomSockets(io: Server, socket: Socket) {
                 players: roomStates[roomId].players,
                 gameRule,
             });
-        }
+        },
     );
 
     socket.on(
@@ -56,7 +56,7 @@ function handleRoomSockets(io: Server, socket: Socket) {
 
             if (
                 roomStates[roomId].players.some(
-                    (p) => p.id === socket.data.sessionId
+                    (p) => p.id === socket.data.sessionId,
                 )
             ) {
                 return;
@@ -71,7 +71,7 @@ function handleRoomSockets(io: Server, socket: Socket) {
             io.to(roomId).emit("room_update", roomStates[roomId]);
 
             console.log(`${playerName} joined room ${roomId}`);
-        }
+        },
     );
 
     socket.on("starting_game", (roomId) => {
@@ -101,7 +101,7 @@ function handleRoomSockets(io: Server, socket: Socket) {
         console.log(`🚪 ${playerName} left room ${roomId}`);
         for (const roomId in roomStates) {
             const updatedPlayers = roomStates[roomId].players.filter(
-                (p) => p.id !== socket.data.sessionId
+                (p) => p.id !== socket.data.sessionId,
             );
 
             socket.leave(roomId);
