@@ -8,12 +8,12 @@ import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-        <BrowserRouter basename="/DefinitelyNotUNONoMercy">
+        <BrowserRouter>
             <Routes>
                 <Route path="/" element={<App />} />
                 <Route path="/create" element={<CreateRoomPage />} />
                 <Route path="/room/:roomId" element={<RoomPage />} />
             </Routes>
         </BrowserRouter>
-    </React.StrictMode>
+    </React.StrictMode>,
 );
