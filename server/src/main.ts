@@ -13,7 +13,8 @@ const io = new Server(server, {
         origin: [
             "https://john1162504.github.io/DefinitelyNotUNONoMercy",
             "http://localhost:5173",
-        ],
+            process.env.CLIENT_URL || "",
+        ].filter(Boolean),
         methods: ["GET", "POST"],
     },
 });
