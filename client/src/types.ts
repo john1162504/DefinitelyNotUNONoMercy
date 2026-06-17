@@ -37,7 +37,11 @@ interface GameRule {
     numOfDraWSix: number;
     numOfDrawTen: number;
     secondPerRound: number;
-    specialRulesIsEnabled: boolean;
+    secondsPerRound: number;
+    specialRulesIsEnabled?: boolean;
+    rotateHandsOnZero: boolean;
+    swapHandsOnSeven: boolean;
+    allowWinOnFunctionCard: boolean;
 }
 
 interface RoomState {
@@ -57,6 +61,14 @@ interface GameState {
     pendingDrawCount?: number;
     miniumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
     activeColor?: "red" | "green" | "blue" | "yellow";
+    unoChallenge?: {
+        playerId: string;
+        xPercent: number;
+        yPercent: number;
+    };
+    pendingHandSwaps?: number;
+    handSwapPlayerId?: string;
+    turnExpiresAt?: number;
 }
 
 export type { Color, Value, Card, Player, RoomState, GameRule, GameState };

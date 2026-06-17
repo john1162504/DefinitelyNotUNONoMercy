@@ -36,8 +36,15 @@ interface Player {
 interface GameRule {
     numOfDraWSix: number;
     numOfDrawTen: number;
+    /** @deprecated use secondsPerRound */
     secondPerRound: number;
-    specialRulesIsEnabled: boolean;
+    secondsPerRound: number;
+    /** @deprecated use rotateHandsOnZero / swapHandsOnSeven */
+    specialRulesIsEnabled?: boolean;
+    rotateHandsOnZero: boolean;
+    swapHandsOnSeven: boolean;
+    /** When false, emptying your hand on a function card draws 2 instead of winning. */
+    allowWinOnFunctionCard: boolean;
 }
 
 interface RoomState {
@@ -57,6 +64,15 @@ interface PublicGameState {
     pendingDrawCount?: number;
     miniumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
     activeColor?: "red" | "green" | "blue" | "yellow";
+    unoChallenge?: {
+        playerId: string;
+        xPercent: number;
+        yPercent: number;
+    };
+    /** Remaining hand swaps after playing 7(s) — special rules only */
+    pendingHandSwaps?: number;
+    handSwapPlayerId?: string;
+    turnExpiresAt?: number;
 }
 
 interface GameState extends PublicGameState {

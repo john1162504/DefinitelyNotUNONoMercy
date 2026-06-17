@@ -34,12 +34,9 @@ function App() {
     };
 
     const handleCreate = () => {
-        const trimmedName = playerName.trim();
-        if (!trimmedName) {
-            alert("Please enter your name");
-            return;
-        }
-        navigate("/create", { state: { playerName: trimmedName } });
+        navigate("/create", {
+            state: { playerName: playerName.trim() },
+        });
     };
 
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -59,14 +56,9 @@ function App() {
                             value={playerName}
                             onChange={(e) => setPlayerName(e.target.value)}
                             onKeyPress={(e) => {
-                                if (e.key === "Enter" && playerName.trim()) {
+                                if (e.key === "Enter") {
                                     if (roomId.trim()) handleJoin();
-                                    else
-                                        navigate("/create", {
-                                            state: {
-                                                playerName: playerName.trim(),
-                                            },
-                                        });
+                                    else handleCreate();
                                 }
                             }}
                             placeholder="Your name"
@@ -96,11 +88,7 @@ function App() {
                     </div>
                 </div>
 
-                <Button
-                    variant="outline"
-                    onClick={handleCreate}
-                    disabled={!playerName.trim()}
-                >
+                <Button variant="outline" onClick={handleCreate}>
                     Create Room
                 </Button>
             </div>

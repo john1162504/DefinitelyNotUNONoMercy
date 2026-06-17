@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "main": "main.ts",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "node scripts/simulate-3player.mjs",
         "dev": "ts-node-dev src/main.ts",
         "build": "tsc",
         "start": "node dist/main.js"
@@ -20,6 +20,7 @@
     "devDependencies": {
         "@types/express": "^5.0.1",
         "@types/node": "^22.15.17",
+        "socket.io-client": "^4.8.3",
         "ts-node-dev": "^2.0.0",
         "typescript": "^5.8.3"
     }

@@ -1,4 +1,4 @@
-import socket from "@/socket/socket";
+import { getSessionId } from "@/socket/socket";
 import type { Card, GameState, Player } from "@/types";
 import PlayerSeat from "./PlayerSeat";
 import CenterPile from "./CenterPile";
@@ -12,6 +12,8 @@ interface GameTableProps {
     hand: Card[];
     hostId: string;
     gameState: GameState;
+    isYourTurn: boolean;
+    canAct?: boolean;
     onPlayCard?: (cards: Card[]) => void;
     onTakeDraw?: (count: number) => void;
 }
@@ -21,13 +23,16 @@ export default function GameTable({
     hostId,
     hand,
     gameState,
+    isYourTurn,
+    canAct,
     onPlayCard,
     onTakeDraw,
 }: GameTableProps) {
+    const mayAct = canAct ?? isYourTurn;
+    const sessionId = getSessionId();
     const discardPile = gameState.discardPile;
     const deck = gameState.deck;
 
-    // Responsive table size state
     const tableRef = useRef<HTMLDivElement>(null);
     const [tableSize, setTableSize] = useState({ width: 800, height: 450 });
 
@@ -45,17 +50,16 @@ export default function GameTable({
         return () => window.removeEventListener("resize", updateSize);
     }, []);
 
-    // Find the user's position and rotate the array so "you" are at the bottom
-    // socket.id is always a string, so we just compare directly
-    const userIdx = players.findIndex((p) => p.id === socket.id);
+    const userIdx = players.findIndex((p) => p.id === sessionId);
     const orderedPlayers =
         userIdx >= 0
             ? [...players.slice(userIdx), ...players.slice(0, userIdx)]
             : players;
 
+    const stackActive = (gameState.pendingDrawCount ?? 0) > 0;
+
     return (
         <div className="relative w-full mx-auto">
-            {/* Table background - adjusted height to leave room for user hand */}
             <div
                 className="relative w-full aspect-[16/9]"
                 style={{
@@ -78,24 +82,26 @@ export default function GameTable({
                         deckCount={deck.length}
                         topDiscard={discardPile[discardPile.length - 1]}
                         direction={gameState.direction}
+                        activeColor={gameState.activeColor}
+                        isYourTurn={mayAct}
+                        highlightDraw={mayAct && stackActive}
                         onTakeDraw={onTakeDraw}
                     />
 
-                    {/* Other Player positions and hands */}
                     {orderedPlayers.map((player, idx) => {
                         const baseAngle = 90;
                         const angle = baseAngle + (360 / players.length) * idx;
                         const rad = (angle * Math.PI) / 180;
                         const xRadius = 46;
                         const yRadius = 42;
-                        const xPercent = 50 + Math.cos(rad) * xRadius; // x & y use to determind position regarding to the table
+                        const xPercent = 50 + Math.cos(rad) * xRadius;
                         const yPercent = 50 + Math.sin(rad) * yRadius;
 
                         return (
                             <Fragment key={player.id}>
                                 <PlayerSeat
                                     name={player.name}
-                                    isYou={player.id === socket.id}
+                                    isYou={player.id === sessionId}
                                     isHost={player.id === hostId}
                                     isCurrentTurn={
                                         gameState.players[
@@ -108,7 +114,7 @@ export default function GameTable({
                                     xPercent={xPercent}
                                     yPercent={yPercent}
                                 />
-                                {player.id !== socket.id && (
+                                {player.id !== sessionId && (
                                     <FannedHand
                                         numCards={
                                             gameState.playerCardCounter[
@@ -126,11 +132,14 @@ export default function GameTable({
                 </div>
             </div>
 
-            {/* User hand positioned absolutely below the table */}
-            <div className="relative w-full">
+            <div
+                className={`relative w-full ${!mayAct ? "opacity-60 pointer-events-none" : ""}`}
+            >
                 <UserHand
                     hand={hand}
                     tableWidth={tableSize.width}
+                    gameState={gameState}
+                    isYourTurn={mayAct}
                     onPlayCard={onPlayCard}
                 />
             </div>

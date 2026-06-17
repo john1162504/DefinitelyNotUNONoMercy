@@ -1,11 +1,16 @@
-import type { Card } from "@/types";
-import React, { useState } from "react";
+import type { Card, GameState } from "@/types";
+import {
+    canPlayCards,
+    canSelectCard,
+    PLAYABLE_COLORS,
+    type PlayableColor,
+} from "@/lib/cardValidation";
+import React, { useEffect, useState } from "react";
 
-// Tweak these ratios as needed
 const CARD_WIDTH_RATIO = 1 / 13.5;
 const CARD_HEIGHT_RATIO = 1.5;
 const HAND_MAX = 25;
-const CARD_SPACING = 0.45; // as a fraction of card width
+const CARD_SPACING = 0.45;
 
 const COLOR_ORDER = ["red", "yellow", "green", "blue", "wild"];
 
@@ -17,6 +22,8 @@ const cardImgPath = (card: Card) =>
 interface UserHandProps {
     hand: Card[];
     tableWidth: number;
+    gameState: GameState;
+    isYourTurn: boolean;
     onPlayCard?: (cards: Card[], chosenColor?: string) => void;
 }
 
@@ -33,30 +40,48 @@ function sortByColor(a: Card, b: Card) {
 const UserHand: React.FC<UserHandProps> = ({
     hand,
     tableWidth,
+    gameState,
+    isYourTurn,
     onPlayCard,
 }) => {
-    // Safety check for hand
+    const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+    const [selectedWildColor, setSelectedWildColor] =
+        useState<PlayableColor | null>(null);
+    const [validationHint, setValidationHint] = useState<string | null>(null);
+
+    useEffect(() => {
+        setSelectedWildColor(null);
+        setValidationHint(null);
+    }, [selectedIndices.join(",")]);
+
     if (!hand || hand.length === 0) {
         return null;
     }
 
-    // Responsive card sizing
     const cardWidth = Math.max(30, tableWidth * CARD_WIDTH_RATIO);
     const cardHeight = cardWidth * CARD_HEIGHT_RATIO;
 
-    // Sorting
     const sortedHand = [...hand].sort(sortByColor);
 
-    // Selected cards state
-    const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
     const selectedCards = selectedIndices
         .map((idx) => sortedHand[idx])
         .filter(Boolean);
 
-    // Color picker state
-    const [showColorPicker, setShowColorPicker] = useState(false);
+    const hasWild = selectedCards.some((c) => c.color === "wild");
+    const hasSelection = selectedIndices.length > 0;
 
-    // Layout math
+    const playValidation = canPlayCards(
+        selectedCards,
+        gameState,
+        hasWild ? selectedWildColor ?? undefined : undefined,
+    );
+
+    const canPlay =
+        isYourTurn &&
+        selectedCards.length > 0 &&
+        (!hasWild || selectedWildColor !== null) &&
+        playValidation.valid;
+
     const maxHandWidth = tableWidth * 0.95;
     const totalWidth = Math.min(
         cardWidth + (HAND_MAX - 1) * cardWidth * CARD_SPACING,
@@ -67,80 +92,127 @@ const UserHand: React.FC<UserHandProps> = ({
             ? (totalWidth - cardWidth) / (sortedHand.length - 1)
             : 0;
 
-    // Helpers
-    const hasWild = selectedCards.some((c) => c.color === "wild");
+    const handlePlay = () => {
+        if (!isYourTurn || selectedCards.length === 0) return;
 
-    // Handle play (with or without chosen color)
-    const handlePlay = (chosenColor?: string) => {
-        if (onPlayCard && selectedCards.length > 0) {
-            onPlayCard(selectedCards, chosenColor);
-            setSelectedIndices([]);
-            setShowColorPicker(false);
+        const chosenColor = hasWild ? selectedWildColor ?? undefined : undefined;
+        const validation = canPlayCards(selectedCards, gameState, chosenColor);
+        if (!validation.valid) {
+            setValidationHint(validation.reason ?? "Invalid play");
+            return;
         }
+
+        onPlayCard?.(selectedCards, chosenColor);
+        setSelectedIndices([]);
+        setSelectedWildColor(null);
+        setValidationHint(null);
+    };
+
+    const toggleSelect = (i: number) => {
+        if (!isYourTurn) return;
+
+        const card = sortedHand[i];
+        if (selectedIndices.includes(i)) {
+            setSelectedIndices(selectedIndices.filter((idx) => idx !== i));
+            return;
+        }
+
+        if (!canSelectCard(card, selectedCards, gameState)) {
+            return;
+        }
+
+        setSelectedIndices([...selectedIndices, i]);
+        setValidationHint(null);
     };
 
     return (
-        <>
-            {/* Color Picker Modal */}
-            {showColorPicker && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col gap-2 items-center">
-                        <span className="mb-2">Pick a color:</span>
-                        <div className="flex gap-4">
-                            {["red", "green", "blue", "yellow"].map((color) => (
-                                <button
-                                    key={color}
-                                    onClick={() => handlePlay(color)}
-                                    className="w-10 h-10 rounded-full border-2 border-black"
-                                    style={{ backgroundColor: color }}
-                                />
-                            ))}
-                        </div>
-                        <button
-                            className="mt-3 text-xs underline"
-                            onClick={() => setShowColorPicker(false)}
-                        >
-                            Cancel
-                        </button>
+        <div className="relative flex flex-col items-center justify-center pointer-events-none w-full py-8">
+            {hasWild && hasSelection && (
+                <div className="mb-3 pointer-events-auto flex flex-col items-center gap-2 p-3 bg-white rounded-xl shadow-md border-2 border-purple-300">
+                    <span className="text-sm font-semibold text-gray-800">
+                        Wild card — choose a color to play:
+                    </span>
+                    <div className="flex gap-3">
+                        {PLAYABLE_COLORS.map((color) => (
+                            <button
+                                key={color}
+                                type="button"
+                                title={color}
+                                onClick={() => setSelectedWildColor(color)}
+                                className={`w-11 h-11 rounded-full border-3 transition-transform ${
+                                    selectedWildColor === color
+                                        ? "border-black scale-110 ring-2 ring-offset-2 ring-black"
+                                        : "border-gray-400 hover:scale-105"
+                                }`}
+                                style={{ backgroundColor: color }}
+                            />
+                        ))}
                     </div>
+                    {!selectedWildColor && (
+                        <span className="text-xs text-amber-700">
+                            Pick a color, then press Play
+                        </span>
+                    )}
                 </div>
             )}
 
-            <div className="relative flex flex-col items-center justify-center pointer-events-none w-full py-8">
-                {/* Action Buttons */}
-                <div className="mb-2 pointer-events-auto flex gap-2">
-                    <button
-                        className="rounded px-2 py-1 border bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 disabled:cursor-not-allowed"
-                        onClick={() => setSelectedIndices([])}
-                    >
-                        Reset
-                    </button>
-                    <button
-                        className="rounded px-2 py-1 border bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                        onClick={() => {
-                            if (hasWild) {
-                                setShowColorPicker(true);
-                            } else {
-                                handlePlay();
-                            }
-                        }}
-                        disabled={selectedIndices.length === 0}
-                    >
-                        Play
-                    </button>
-                </div>
-
-                {/* Hand of cards */}
-                <div
-                    style={{
-                        position: "relative",
-                        height: `${cardHeight}px`,
-                        width: `${totalWidth}px`,
+            <div className="mb-2 pointer-events-auto flex gap-2 items-center flex-wrap justify-center">
+                <button
+                    className="rounded px-2 py-1 border bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 disabled:cursor-not-allowed"
+                    onClick={() => {
+                        setSelectedIndices([]);
+                        setSelectedWildColor(null);
+                        setValidationHint(null);
                     }}
+                    disabled={!isYourTurn}
                 >
-                    {sortedHand.map((card, i) => (
+                    Reset
+                </button>
+                <button
+                    className="rounded px-2 py-1 border bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    onClick={handlePlay}
+                    disabled={!canPlay}
+                >
+                    Play
+                </button>
+                {validationHint && (
+                    <span className="text-xs text-red-600 max-w-[14rem]">
+                        {validationHint}
+                    </span>
+                )}
+                {hasWild && hasSelection && !selectedWildColor && (
+                    <span className="text-xs text-amber-700">
+                        Select a color above to enable Play
+                    </span>
+                )}
+            </div>
+
+            <div
+                style={{
+                    position: "relative",
+                    height: `${cardHeight}px`,
+                    width: `${totalWidth}px`,
+                }}
+            >
+                {sortedHand.map((card, i) => {
+                    const isSelected = selectedIndices.includes(i);
+                    const selectable =
+                        isYourTurn &&
+                        (isSelected ||
+                            canSelectCard(card, selectedCards, gameState));
+                    const dimmed =
+                        isYourTurn &&
+                        hasSelection &&
+                        !isSelected &&
+                        !selectable;
+                    const highlightWhenIdle =
+                        isYourTurn &&
+                        !hasSelection &&
+                        canSelectCard(card, [], gameState);
+
+                    return (
                         <img
-                            key={i}
+                            key={`${card.color}-${card.value}-${i}`}
                             src={cardImgPath(card)}
                             alt={`${card.color} ${card.value}`}
                             style={{
@@ -148,43 +220,54 @@ const UserHand: React.FC<UserHandProps> = ({
                                 left: i * actualSpacing,
                                 width: `${cardWidth}px`,
                                 height: `${cardHeight}px`,
-                                zIndex: i,
-                                cursor: "pointer",
-                                transition: "box-shadow 0.2s, transform 0.1s",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                                pointerEvents: "auto",
-                                border: selectedIndices.includes(i)
-                                    ? "2px solid gold"
-                                    : "none",
+                                zIndex: isSelected ? i + 100 : i,
+                                cursor: isYourTurn
+                                    ? selectable
+                                        ? "pointer"
+                                        : "not-allowed"
+                                    : "not-allowed",
+                                transition:
+                                    "box-shadow 0.2s, transform 0.1s, opacity 0.2s, filter 0.2s",
+                                boxShadow: isSelected
+                                    ? "0 0 0 3px gold, 0 4px 12px rgba(0,0,0,0.25)"
+                                    : highlightWhenIdle
+                                      ? "0 0 0 2px rgba(34,197,94,0.6), 0 2px 8px rgba(0,0,0,0.15)"
+                                      : "0 2px 8px rgba(0,0,0,0.15)",
+                                pointerEvents: isYourTurn ? "auto" : "none",
+                                border: "none",
                                 background: "#fff",
+                                opacity: dimmed ? 0.3 : isYourTurn ? 1 : 0.7,
+                                filter: dimmed ? "grayscale(0.6)" : "none",
+                                transform: isSelected ? "translateY(-8px)" : undefined,
                             }}
-                            onClick={() => {
-                                if (selectedIndices.includes(i)) {
-                                    setSelectedIndices(
-                                        selectedIndices.filter(
-                                            (idx) => idx !== i,
-                                        ),
-                                    );
-                                } else {
-                                    setSelectedIndices([...selectedIndices, i]);
-                                }
-                            }}
+                            onClick={() => toggleSelect(i)}
                             onDoubleClick={() => {
+                                if (!isYourTurn) return;
                                 if (!selectedIndices.includes(i)) {
-                                    setSelectedIndices([...selectedIndices, i]);
+                                    if (
+                                        !canSelectCard(
+                                            card,
+                                            selectedCards,
+                                            gameState,
+                                        )
+                                    ) {
+                                        return;
+                                    }
+                                    setSelectedIndices([
+                                        ...selectedIndices,
+                                        i,
+                                    ]);
                                 }
-                                if (card.color === "wild") {
-                                    setShowColorPicker(true);
-                                } else {
+                                if (card.color !== "wild") {
                                     handlePlay();
                                 }
                             }}
                             draggable={false}
                         />
-                    ))}
-                </div>
+                    );
+                })}
             </div>
-        </>
+        </div>
     );
 };
 

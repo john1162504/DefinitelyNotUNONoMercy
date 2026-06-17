@@ -13,6 +13,11 @@ import {
     getPlayerCardCounts,
     shuffle,
 } from "../game/GameEngine";
+import {
+    clearTurnTimer,
+    getTurnExpiresAt,
+    startTurnTimer,
+} from "../game/TurnTimer";
 
 const gameStates: Record<string, GameState> = {};
 const DRAW_CARD_VALUES = ["+2", "+4", "reverse+4", "+6", "+10"];
@@ -24,11 +29,129 @@ const DRAW_CARD_STRENGTH = {
     "+10": 10,
 };
 
+const UNSTARTABLE_VALUES = new Set([
+    "+2",
+    "+4",
+    "reverse+4",
+    "+6",
+    "+10",
+    "colorRoulette",
+    "skip",
+    "skipAll",
+    "reverse",
+    "discardAll",
+]);
+
+const FUNCTION_CARD_VALUES = new Set([
+    "skip",
+    "skipAll",
+    "reverse",
+    "discardAll",
+    "+2",
+    "+4",
+    "reverse+4",
+    "+6",
+    "+10",
+    "colorRoulette",
+]);
+
+function getRuleFlags(roomId: string) {
+    const rule = roomStates[roomId]?.rule;
+    const legacy = rule?.specialRulesIsEnabled ?? false;
+    return {
+        rotateHandsOnZero: rule?.rotateHandsOnZero ?? legacy,
+        swapHandsOnSeven: rule?.swapHandsOnSeven ?? legacy,
+    };
+}
+
+function isFunctionCardPlay(
+    cards: Card[],
+    rotateHandsOnZero: boolean,
+    swapHandsOnSeven: boolean,
+): boolean {
+    if (cards.some((c) => FUNCTION_CARD_VALUES.has(c.value))) return true;
+    if (rotateHandsOnZero && cards.some((c) => c.value === "0")) return true;
+    if (swapHandsOnSeven && cards.some((c) => c.value === "7")) return true;
+    return false;
+}
+
+function isFunctionCardValue(
+    value: string,
+    rotateHandsOnZero: boolean,
+    swapHandsOnSeven: boolean,
+): boolean {
+    if (FUNCTION_CARD_VALUES.has(value)) return true;
+    if (rotateHandsOnZero && value === "0") return true;
+    if (swapHandsOnSeven && value === "7") return true;
+    return false;
+}
+
+function rotateAllHands(game: GameState, times: number) {
+    for (let t = 0; t < times; t++) {
+        const hands = game.hands;
+        const playerIds = game.players.map((p) => p.id);
+        const newHands: Record<string, Card[]> = {};
+
+        for (let i = 0; i < playerIds.length; i++) {
+            const fromId = playerIds[i];
+            const toIdx =
+                (i + game.direction + playerIds.length) % playerIds.length;
+            newHands[playerIds[toIdx]] = hands[fromId];
+        }
+        game.hands = newHands;
+    }
+}
+
+function swapHands(game: GameState, playerA: string, playerB: string) {
+    const temp = game.hands[playerA];
+    game.hands[playerA] = game.hands[playerB];
+    game.hands[playerB] = temp;
+}
+
+function completeTurnAfterPlay(
+    io: Server,
+    game: GameState,
+    roomId: string,
+    playerId: string,
+    skipTurnRotation: boolean,
+) {
+    if (!game.pendingHandSwaps) {
+        if (!skipTurnRotation) {
+            rotateBy(game, 1);
+        }
+
+        const handAfter = game.hands[playerId];
+        if (handAfter?.length === 1) {
+            startUnoChallenge(game, playerId);
+        }
+    }
+
+    finishTurn(io, game, roomId);
+}
+
+function syncCardCounters(game: GameState) {
+    game.playerCardCounter = getPlayerCardCounts(game.hands);
+}
+
+function popStartableCard(deck: Card[]): Card {
+    while (deck.length > 0) {
+        const card = deck.pop()!;
+        if (card.color !== "wild" && !UNSTARTABLE_VALUES.has(card.value)) {
+            return card;
+        }
+        deck.unshift(card);
+    }
+    throw new Error("No startable card in deck");
+}
+
 function startGame(io: Server, roomState: RoomState, roomId: string) {
+    const deck = createDeck(roomState.rule);
+    const startCard = popStartableCard(deck);
+
     const publicGameState: PublicGameState = {
         players: roomState.players,
-        deck: createDeck(roomState.rule),
-        discardPile: [],
+        deck,
+        discardPile: [startCard],
         currentPlayerIndex: 0,
         direction: 1,
         playerCardCounter: {},
@@ -36,21 +159,135 @@ function startGame(io: Server, roomState: RoomState, roomId: string) {
     };
 
     roomState.isStarted = true;
-    const [hands, deck] = dealHands(roomState.players, publicGameState.deck);
-    publicGameState.deck = deck;
-    publicGameState.discardPile.push(deck.pop()!);
+    const [hands, remainingDeck] = dealHands(roomState.players, deck);
+    publicGameState.deck = remainingDeck;
     publicGameState.playerCardCounter = getPlayerCardCounts(hands);
     gameStates[roomId] = { hands, ...publicGameState };
 
     for (const player of roomState.players) {
-        const playerHand = hands[player.id];
-
         io.to(player.socketId).emit("game_started", {
-            hand: playerHand,
-            gameState: publicGameState,
+            hand: hands[player.id],
+            gameState: {
+                ...publicGameState,
+                turnExpiresAt: scheduleTurnTimer(io, roomId),
+            },
             roomState: roomState,
         });
     }
+}
+
+function scheduleTurnTimer(io: Server, roomId: string): number | undefined {
+    const roomState = roomStates[roomId];
+    const game = gameStates[roomId];
+    if (!roomState || !game) return undefined;
+
+    const seconds =
+        roomState.rule.secondsPerRound ?? roomState.rule.secondPerRound ?? 0;
+    if (seconds <= 0) return undefined;
+
+    startTurnTimer(roomId, seconds, (id) => handleTurnTimeout(io, id));
+    return getTurnExpiresAt(roomId);
+}
+
+function handleTurnTimeout(io: Server, roomId: string) {
+    const game = gameStates[roomId];
+    if (!game) return;
+
+    const currentPlayer = game.players[game.currentPlayerIndex];
+    if (!currentPlayer) return;
+
+    if (game.pendingDrawCount && game.pendingDrawCount > 0) {
+        const drawnCards = drawCard(
+            io,
+            game,
+            roomId,
+            currentPlayer,
+            game.pendingDrawCount,
+        );
+        game.hands[currentPlayer.id].push(...drawnCards);
+        game.pendingDrawCount = 0;
+        game.miniumDrawValue = undefined;
+    } else {
+        const drawnCards = drawCard(io, game, roomId, currentPlayer, 1);
+        game.hands[currentPlayer.id].push(...drawnCards);
+    }
+
+    applyUnoChallengeSync(game);
+    syncCardCounters(game);
+    rotateBy(game, 1);
+    finishTurn(io, game, roomId);
+}
+
+function startUnoChallenge(game: GameState, playerId: string) {
+    game.unoChallenge = {
+        playerId,
+        xPercent: 12 + Math.random() * 76,
+        yPercent: 18 + Math.random() * 64,
+    };
+}
+
+function applyUnoChallengeSync(game: GameState) {
+    if (!game.unoChallenge) return;
+    const hand = game.hands[game.unoChallenge.playerId];
+    if (!hand || hand.length !== 1) {
+        game.unoChallenge = undefined;
+    }
+}
+
+function resolveUnoCall(
+    io: Server,
+    game: GameState,
+    roomId: string,
+    callerId: string,
+) {
+    if (!game.unoChallenge) return;
+
+    const targetId = game.unoChallenge.playerId;
+
+    if (callerId === targetId) {
+        game.unoChallenge = undefined;
+        return;
+    }
+
+    const target = game.players.find((p) => p.id === targetId);
+    if (target && game.hands[targetId]?.length === 1) {
+        const penalty = drawCard(io, game, roomId, target, 2);
+        game.hands[targetId].push(...penalty);
+    }
+    game.unoChallenge = undefined;
+}
+
+function finishTurn(io: Server, game: GameState, roomId: string) {
+    applyUnoChallengeSync(game);
+    syncCardCounters(game);
+    broadcastGameState(io, game, roomId);
+}
+
+function tryGameOver(
+    io: Server,
+    game: GameState,
+    roomId: string,
+    player: Player,
+    playerHand: Card[],
+    playedCards: Card[],
+): boolean {
+    if (playerHand.length !== 0) return false;
+
+    const allowWinOnFunctionCard =
+        roomStates[roomId]?.rule.allowWinOnFunctionCard ?? true;
+    const { rotateHandsOnZero, swapHandsOnSeven } = getRuleFlags(roomId);
+
+    if (
+        !allowWinOnFunctionCard &&
+        isFunctionCardPlay(playedCards, rotateHandsOnZero, swapHandsOnSeven)
+    ) {
+        const penalty = drawCard(io, game, roomId, player, 2);
+        game.hands[player.id].push(...penalty);
+        return false;
+    }
+
+    broadcastGameOver({ io, game, roomId, winner: player.name });
+    return true;
 }
 
 function handleGameSockets(io: Server, socket: Socket) {
@@ -67,7 +304,6 @@ function handleGameSockets(io: Server, socket: Socket) {
         }) => {
             const game = gameStates[roomId];
 
-            // Safety checks
             if (!game) {
                 socket.emit("error", { message: "Game not found." });
                 return;
@@ -98,7 +334,6 @@ function handleGameSockets(io: Server, socket: Socket) {
                 return;
             }
 
-            // Make sure all cards exist in hand
             const isEveryCardInHand = cards.every((card) =>
                 playerHand.some(
                     (c) => c.color === card.color && c.value === card.value,
@@ -128,32 +363,26 @@ function handleGameSockets(io: Server, socket: Socket) {
                 return;
             }
 
-            // Remove cards from hand
+            clearTurnTimer(roomId);
+
+            const { rotateHandsOnZero, swapHandsOnSeven } =
+                getRuleFlags(roomId);
+
             for (const card of cards) {
                 const index = playerHand.findIndex(
                     (c) => c.color === card.color && c.value === card.value,
                 );
                 if (index !== -1) playerHand.splice(index, 1);
-                game.discardPile.push(card); // push each card to discard pile
+                game.discardPile.push(card);
             }
 
-            // Player draws two cards when last card is a function card
             if (playerHand.length === 1) {
                 if (
-                    [
-                        "skip",
-                        "skipAll",
-                        "reverse",
-                        "discardAll",
-                        "+2",
-                        "+4",
-                        "reverse+4",
-                        "+6",
-                        "+10",
-                        "colorRoulette",
-                        //...(game.enableHandsRotate ? ["0"] : []),
-                        //...(game.enableHandsSwap) ? ["7"] : [])
-                    ].includes(playerHand[0].value)
+                    isFunctionCardValue(
+                        playerHand[0].value,
+                        rotateHandsOnZero,
+                        swapHandsOnSeven,
+                    )
                 ) {
                     const newCard = drawCard(
                         io,
@@ -164,42 +393,32 @@ function handleGameSockets(io: Server, socket: Socket) {
                     );
                     game.hands[currentPlayer.id].push(...newCard);
                 }
-
-                // Todo: Add a call last card logic
             }
 
-            // Boardcast winner
-            if (playerHand.length === 0) {
-                broadcastGameOver({
+            if (
+                tryGameOver(
                     io,
                     game,
                     roomId,
-                    winner: currentPlayer.name,
-                });
+                    currentPlayer,
+                    playerHand,
+                    cards,
+                )
+            ) {
+                return;
             }
 
-            // Handle playing draw cards
             if (Object.keys(DRAW_CARD_STRENGTH).includes(cards[0].value)) {
                 for (const card of cards) {
                     if (game.pendingDrawCount) {
                         game.pendingDrawCount +=
                             DRAW_CARD_STRENGTH[
-                                card.value as
-                                    | "+2"
-                                    | "+4"
-                                    | "reverse+4"
-                                    | "+6"
-                                    | "+10"
+                                card.value as keyof typeof DRAW_CARD_STRENGTH
                             ];
                     } else {
                         game.pendingDrawCount =
                             DRAW_CARD_STRENGTH[
-                                card.value as
-                                    | "+2"
-                                    | "+4"
-                                    | "reverse+4"
-                                    | "+6"
-                                    | "+10"
+                                card.value as keyof typeof DRAW_CARD_STRENGTH
                             ];
                     }
                 }
@@ -211,25 +430,37 @@ function handleGameSockets(io: Server, socket: Socket) {
                     | "+10";
             }
 
-            // Handle card effects (skip, draw, etc.)
+            let skipTurnRotation = false;
+
             if (cards[0].value === "skip") {
                 rotateBy(game, cards.length + 1);
-            } else if (
+                skipTurnRotation = true;
+            }
+            if (
                 cards[0].value === "reverse" ||
                 cards[0].value === "reverse+4"
             ) {
                 if (cards.length % 2 === 1) {
                     game.direction = (game.direction * -1) as 1 | -1;
                 }
-            } else if (cards[0].value === "skipAll") {
-                //Do nothing - player take antoehr turn
-            } else if (cards[0].value === "discardAll") {
+                if (
+                    cards[0].value === "reverse" &&
+                    game.players.length === 2
+                ) {
+                    skipTurnRotation = true;
+                }
+            }
+            if (cards[0].value === "skipAll") {
+                skipTurnRotation = true;
+            }
+            if (cards[0].value === "discardAll") {
                 const discardCards = [...playerHand].filter(
                     (c) => c.color === cards[0].color,
                 );
                 for (const card of discardCards) {
                     const index = playerHand.findIndex(
-                        (c) => c.color === card.color && c.value === card.value,
+                        (c) =>
+                            c.color === card.color && c.value === card.value,
                     );
                     if (index !== -1) playerHand.splice(index, 1);
                     game.discardPile.splice(
@@ -238,24 +469,36 @@ function handleGameSockets(io: Server, socket: Socket) {
                         card,
                     );
                 }
-            } else if (cards[0].value === "colorRoulette") {
-                rotateBy(game, 1);
-                const currentPlayer = game.players[game.currentPlayerIndex];
 
-                let drawnCards = [];
+                if (
+                    tryGameOver(
+                        io,
+                        game,
+                        roomId,
+                        currentPlayer,
+                        playerHand,
+                        cards,
+                    )
+                ) {
+                    return;
+                }
+            }
+            if (cards[0].value === "colorRoulette") {
+                rotateBy(game, 1);
+                const roulettePlayer =
+                    game.players[game.currentPlayerIndex];
 
                 while (true) {
                     const newCard = drawCard(
                         io,
                         game,
                         roomId,
-                        currentPlayer,
+                        roulettePlayer,
                         1,
                     )[0];
                     if (!newCard) break;
 
-                    game.hands[currentPlayer.id].push(newCard);
-                    drawnCards.push(newCard);
+                    game.hands[roulettePlayer.id].push(newCard);
 
                     if (newCard.color === chosenColor) {
                         break;
@@ -266,19 +509,95 @@ function handleGameSockets(io: Server, socket: Socket) {
             if (cards.some((c) => c.color === "wild")) {
                 game.activeColor = chosenColor;
             } else if (game.activeColor) {
-                // If a non-wild was played, clear activeColor
                 game.activeColor = undefined;
             }
 
-            // Rotate turn (you might want to skip this based on card effects)
-            if (cards[0].value !== "skip" && cards[0].value !== "skipAll") {
-                rotateBy(game, 1);
+            if (rotateHandsOnZero && cards[0].value === "0") {
+                rotateAllHands(game, cards.length);
             }
 
-            // Update the game state for all players
-            game.playerCardCounter[playerId] = playerHand.length;
+            if (swapHandsOnSeven && cards[0].value === "7") {
+                const sevenCount = cards.filter((c) => c.value === "7").length;
+                game.pendingHandSwaps = sevenCount;
+                game.handSwapPlayerId = playerId;
+                skipTurnRotation = true;
+            }
 
-            broadcastGameState(io, game);
+            completeTurnAfterPlay(
+                io,
+                game,
+                roomId,
+                playerId,
+                skipTurnRotation,
+            );
+        },
+    );
+
+    socket.on("call_uno", ({ roomId }: { roomId: string }) => {
+        const game = gameStates[roomId];
+        if (!game?.unoChallenge) return;
+
+        const callerId = socket.data.sessionId;
+        resolveUnoCall(io, game, roomId, callerId);
+        finishTurn(io, game, roomId);
+    });
+
+    socket.on(
+        "swap_hands",
+        ({
+            roomId,
+            targetPlayerId,
+        }: {
+            roomId: string;
+            targetPlayerId: string;
+        }) => {
+            const game = gameStates[roomId];
+
+            if (!game) {
+                socket.emit("error", { message: "Game not found." });
+                return;
+            }
+
+            if (!game.pendingHandSwaps || game.pendingHandSwaps <= 0) {
+                socket.emit("error", { message: "No hand swap pending." });
+                return;
+            }
+
+            const actorId = game.handSwapPlayerId;
+            if (!actorId || actorId !== socket.data.sessionId) {
+                socket.emit("error", {
+                    message: "Only the player who played 7 can swap.",
+                });
+                return;
+            }
+
+            if (!game.hands[targetPlayerId]) {
+                socket.emit("error", { message: "Invalid swap target." });
+                return;
+            }
+
+            if (targetPlayerId === actorId) {
+                socket.emit("error", {
+                    message: "Choose another player to swap with.",
+                });
+                return;
+            }
+
+            swapHands(game, actorId, targetPlayerId);
+            game.pendingHandSwaps -= 1;
+
+            if (game.pendingHandSwaps <= 0) {
+                game.pendingHandSwaps = undefined;
+                game.handSwapPlayerId = undefined;
+                rotateBy(game, 1);
+
+                const handAfter = game.hands[actorId];
+                if (handAfter?.length === 1) {
+                    startUnoChallenge(game, actorId);
+                }
+            }
+
+            finishTurn(io, game, roomId);
         },
     );
 
@@ -287,7 +606,6 @@ function handleGameSockets(io: Server, socket: Socket) {
         ({ roomId, count }: { roomId: string; count?: number }) => {
             const game = gameStates[roomId];
 
-            // Safety checks
             if (!game) {
                 socket.emit("error", { message: "Game not found." });
                 return;
@@ -306,8 +624,9 @@ function handleGameSockets(io: Server, socket: Socket) {
                 return;
             }
 
+            clearTurnTimer(roomId);
+
             if (game.pendingDrawCount) {
-                // Draw cards depends on the pending draw count
                 const drawnCards = drawCard(
                     io,
                     game,
@@ -316,12 +635,10 @@ function handleGameSockets(io: Server, socket: Socket) {
                     game.pendingDrawCount,
                 );
                 game.hands[playerId].push(...drawnCards);
-                game.playerCardCounter[playerId] += drawnCards.length;
                 game.pendingDrawCount = 0;
                 game.miniumDrawValue = undefined;
                 rotateBy(game, 1);
             } else if (count && count > 0) {
-                // Draw cards depends on the count
                 const drawnCards = drawCard(
                     io,
                     game,
@@ -330,32 +647,17 @@ function handleGameSockets(io: Server, socket: Socket) {
                     count,
                 );
                 game.hands[playerId].push(...drawnCards);
-                game.playerCardCounter[playerId] += drawnCards.length;
                 rotateBy(game, 1);
             } else {
                 socket.emit("error", { message: "Invalid draw request." });
                 return;
             }
 
-            // Update the game state for all players
-            broadcastGameState(io, game);
+            applyUnoChallengeSync(game);
+            finishTurn(io, game, roomId);
         },
     );
 }
-
-/**
- * Validates whether the selected cards can be legally played based on the current game state.
- *
- * Rules enforced:
- * - All cards must match the top discard card in color, value, or be a wild.
- * - If playing multiple cards, all must have the same value.
- * - If the top card is a draw card (+2, +4, etc.), the played card must be a draw card
- *   of equal or higher strength.
- *
- * @param cards - The cards the player is attempting to play.
- * @param game - The current public game state (excluding player hands).
- * @returns true if the play is valid, false otherwise.
- */
 
 function cardValidation(
     cards: Card[],
@@ -363,8 +665,6 @@ function cardValidation(
     chosenColor?: "red" | "green" | "blue" | "yellow",
 ): boolean {
     const topCard = game.discardPile[game.discardPile.length - 1];
-
-    // Use active color if present
     const colorToMatch = game.activeColor || topCard.color;
 
     const isValidFirstCard =
@@ -383,13 +683,11 @@ function cardValidation(
         return false;
     }
 
-    // All cards must have same value if playing multiple at once
     if (cards.length > 1) {
         const isSameValue = cards.every((c) => c.value === cards[0].value);
         if (!isSameValue) return false;
     }
 
-    // Check if there is a pending draw and validate the played cards values need to be higher than the top card
     if (game.pendingDrawCount) {
         const isHigherThanTopCard = cards.every(
             (c) =>
@@ -415,18 +713,6 @@ function rotateBy(game: PublicGameState, steps: number) {
         game.players.length;
 }
 
-/**
- *
- * CARD MUST ONLY BE DRAW USING THIS FUNCTION
- *
- * Draws a specified number of cards from the game's deck for a player.
- * If the deck is empty during drawing, the discard pile (except the top card)
- * is reshuffled into the deck to continue drawing.
- *
- * @param game - The current public game state containing the deck and discard pile.
- * @param numCards - The number of cards to draw.
- * @returns An array of cards drawn from the deck.
- */
 function drawCard(
     io: Server,
     game: GameState,
@@ -452,13 +738,21 @@ function drawCard(
     return drawnCards;
 }
 
-function broadcastGameState(io: Server, game: GameState) {
+function broadcastGameState(io: Server, game: GameState, roomId: string) {
+    syncCardCounters(game);
+    clearTurnTimer(roomId);
+
+    const turnExpiresAt =
+        game.pendingHandSwaps && game.pendingHandSwaps > 0
+            ? undefined
+            : scheduleTurnTimer(io, roomId);
+
     const { hands, ...publicGameState } = game;
 
     for (const player of game.players) {
         io.to(player.socketId).emit("game_update", {
             hand: hands[player.id],
-            gameState: publicGameState,
+            gameState: { ...publicGameState, turnExpiresAt },
         });
     }
 }
@@ -476,21 +770,70 @@ function broadcastGameOver({
     winner?: string;
     loser?: string;
 }) {
-    const payload: any = {
+    clearTurnTimer(roomId);
+
+    const payload: {
+        roomId: string;
+        winner?: string;
+        loser?: string;
+    } = {
         roomId: roomId,
         ...(winner && { winner }),
         ...(loser && { loser }),
     };
-    for (const player of game.players) {
-        io.to(player.socketId).emit("game_over", payload);
-    }
+
+    io.to(roomId).emit("game_over", payload);
 
     delete gameStates[roomId];
 
-    // ADD THIS: reset roomState.isStarted to false
     if (roomStates[roomId]) {
         roomStates[roomId].isStarted = false;
+        io.to(roomId).emit("room_update", roomStates[roomId]);
     }
 }
 
-export { handleGameSockets, startGame, gameStates };
+function handlePlayerLeaveMidGame(
+    io: Server,
+    roomId: string,
+    sessionId: string,
+) {
+    const game = gameStates[roomId];
+    const roomState = roomStates[roomId];
+    if (!game || !roomState) return;
+
+    clearTurnTimer(roomId);
+
+    const leaveIdx = game.players.findIndex((p) => p.id === sessionId);
+    if (leaveIdx === -1) return;
+
+    delete game.hands[sessionId];
+    game.players = game.players.filter((p) => p.id !== sessionId);
+
+    if (game.players.length < 2) {
+        broadcastGameOver({
+            io,
+            game,
+            roomId,
+            winner: game.players[0]?.name,
+        });
+        return;
+    }
+
+    if (game.currentPlayerIndex >= game.players.length) {
+        game.currentPlayerIndex = 0;
+    } else if (leaveIdx < game.currentPlayerIndex) {
+        game.currentPlayerIndex = Math.max(0, game.currentPlayerIndex - 1);
+    } else if (leaveIdx === game.currentPlayerIndex) {
+        game.currentPlayerIndex = game.currentPlayerIndex % game.players.length;
+    }
+
+    syncCardCounters(game);
+    broadcastGameState(io, game, roomId);
+}
+
+export {
+    handleGameSockets,
+    startGame,
+    gameStates,
+    handlePlayerLeaveMidGame,
+};

@@ -11,7 +11,7 @@ function handleConnection(io: Server, socket: Socket) {
             const roomState = roomStates[roomId];
 
             if (!roomState) {
-                socket.emit("error", {
+                socket.emit("error_room_not_found", {
                     message: `Room ${roomId} does not exist.`,
                 });
                 return;
@@ -21,18 +21,15 @@ function handleConnection(io: Server, socket: Socket) {
 
             if (!player) {
                 socket.emit("error", {
-                    message: `Player ${playerId} not found.`,
+                    message: `Player ${playerId} not found in room.`,
                 });
                 return;
-            } else {
-                player.socketId = socket.id;
-                console.log(
-                    `🔄 Player ${playerId} reconnected with new socketId ${socket.id}`,
-                );
             }
 
-            const gameState = gameStates[roomId];
+            player.socketId = socket.id;
+            socket.join(roomId);
 
+            const gameState = gameStates[roomId];
             if (gameState) {
                 const gamePlayer = gameState.players.find(
                     (p) => p.id === playerId,
@@ -43,7 +40,6 @@ function handleConnection(io: Server, socket: Socket) {
             }
 
             console.log("sending room state to", playerId);
-            // Send the raw roomState (not wrapped in { roomState: ... })
             socket.emit("current_room_state", roomState);
         },
     );
@@ -51,12 +47,12 @@ function handleConnection(io: Server, socket: Socket) {
     socket.on(
         "request_current_game_state",
         ({ roomId }: { roomId: string }) => {
-            const gameState = gameStates[roomId];
             const roomState = roomStates[roomId];
+            const gameState = gameStates[roomId];
 
-            if (!roomState || !gameState) {
-                socket.emit("error", {
-                    message: `Game ${roomId} does not exist.`,
+            if (!roomState) {
+                socket.emit("error_room_not_found", {
+                    message: `Room ${roomId} does not exist.`,
                 });
                 return;
             }
@@ -64,12 +60,19 @@ function handleConnection(io: Server, socket: Socket) {
             const player = roomState.players.find((p) => p.id === playerId);
             if (!player) {
                 socket.emit("error", {
-                    message: `Player ${playerId} not found.`,
+                    message: `Player ${playerId} not found in room.`,
                 });
                 return;
             }
 
             player.socketId = socket.id;
+            socket.join(roomId);
+
+            if (!gameState || !roomState.isStarted) {
+                socket.emit("current_room_state", roomState);
+                return;
+            }
+
             const gamePlayer = gameState.players.find((p) => p.id === playerId);
             if (gamePlayer) {
                 gamePlayer.socketId = socket.id;

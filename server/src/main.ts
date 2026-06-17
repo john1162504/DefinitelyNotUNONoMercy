@@ -24,6 +24,10 @@ app.get("/", (_req: Request, res: Response) => {
     res.send("UNO server is running!");
 });
 
+app.get("/health", (_req: Request, res: Response) => {
+    res.status(200).json({ status: "OK" });
+});
+
 io.use((socket, next) => {
     const sessionId = socket.handshake.auth.sessionId;
     if (!sessionId) {

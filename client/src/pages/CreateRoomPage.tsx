@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import socket from "../socket/socket";
+import getSocket from "../socket/socket";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
 function CreateRoomPage() {
+    const socket = getSocket();
     const navigate = useNavigate();
     const location = useLocation();
     const initialName =
@@ -16,7 +17,9 @@ function CreateRoomPage() {
     const [numOfDrawSix, setNumOfDrawSix] = useState(4);
     const [numOfDrawTen, setNumOfDrawTen] = useState(4);
     const [secondsPerRound, setSecondsPerRound] = useState(30);
-    const [specialRulesEnabled, setSpecialRulesEnabled] = useState(false);
+    const [rotateHandsOnZero, setRotateHandsOnZero] = useState(false);
+    const [swapHandsOnSeven, setSwapHandsOnSeven] = useState(false);
+    const [allowWinOnFunctionCard, setAllowWinOnFunctionCard] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -33,10 +36,12 @@ function CreateRoomPage() {
 
         socket.on("room_created", handleRoomCreated);
         socket.on("error", handleError);
+        socket.on("error_room_not_found", handleError);
 
         return () => {
             socket.off("room_created", handleRoomCreated);
             socket.off("error", handleError);
+            socket.off("error_room_not_found", handleError);
         };
     }, [name, navigate]);
 
@@ -65,8 +70,10 @@ function CreateRoomPage() {
             gameRule: {
                 numOfDraWSix: numOfDrawSix,
                 numOfDrawTen: numOfDrawTen,
-                specialRulesIsEnabled: specialRulesEnabled,
-                secondsPerRound: secondsPerRound,
+                rotateHandsOnZero,
+                swapHandsOnSeven,
+                allowWinOnFunctionCard,
+                secondsPerRound,
             },
         });
     };
@@ -141,16 +148,68 @@ function CreateRoomPage() {
                     />
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <Checkbox
-                        id="specialRules"
-                        checked={specialRulesEnabled}
-                        onCheckedChange={(val) =>
-                            setSpecialRulesEnabled(Boolean(val))
-                        }
-                        disabled={isLoading}
-                    />
-                    <Label htmlFor="specialRules">Enable Special Rules</Label>
+                <div className="space-y-3 rounded-lg border p-4">
+                    <p className="text-sm font-semibold">House rules</p>
+
+                    <div className="flex items-start gap-2">
+                        <Checkbox
+                            id="rotateHandsOnZero"
+                            checked={rotateHandsOnZero}
+                            onCheckedChange={(val) =>
+                                setRotateHandsOnZero(Boolean(val))
+                            }
+                            disabled={isLoading}
+                        />
+                        <div className="space-y-1">
+                            <Label htmlFor="rotateHandsOnZero">
+                                0 — Rotate all hands
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                                Playing 0 passes every hand to the next player
+                                in turn order (follows game direction).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                        <Checkbox
+                            id="swapHandsOnSeven"
+                            checked={swapHandsOnSeven}
+                            onCheckedChange={(val) =>
+                                setSwapHandsOnSeven(Boolean(val))
+                            }
+                            disabled={isLoading}
+                        />
+                        <div className="space-y-1">
+                            <Label htmlFor="swapHandsOnSeven">
+                                7 — Swap hands
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                                Playing 7 lets you swap hands with another
+                                player (once per 7 played).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                        <Checkbox
+                            id="allowWinOnFunctionCard"
+                            checked={allowWinOnFunctionCard}
+                            onCheckedChange={(val) =>
+                                setAllowWinOnFunctionCard(Boolean(val))
+                            }
+                            disabled={isLoading}
+                        />
+                        <div className="space-y-1">
+                            <Label htmlFor="allowWinOnFunctionCard">
+                                Allow winning on a function card
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                                When off, finishing on a function card (or
+                                enabled 0/7 rules) draws 2 instead of winning.
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <Button

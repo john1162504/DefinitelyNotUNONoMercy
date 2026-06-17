@@ -1,10 +1,33 @@
 import { Server, Socket } from "socket.io";
 import { Player, GameRule, RoomState } from "../models/types";
-import { startGame } from "./GameController";
+import { startGame, handlePlayerLeaveMidGame } from "./GameController";
 
 const roomStates: Record<string, RoomState> = {};
+
 function generateRoomId(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+function normalizeGameRule(
+    gameRule: GameRule & { secondsPerRound?: number },
+): GameRule {
+    const legacySpecial = gameRule.specialRulesIsEnabled ?? false;
+    const rotateHandsOnZero =
+        gameRule.rotateHandsOnZero ?? legacySpecial ?? false;
+    const swapHandsOnSeven =
+        gameRule.swapHandsOnSeven ?? legacySpecial ?? false;
+
+    return {
+        ...gameRule,
+        secondsPerRound:
+            gameRule.secondsPerRound ?? gameRule.secondPerRound ?? 30,
+        secondPerRound:
+            gameRule.secondsPerRound ?? gameRule.secondPerRound ?? 30,
+        allowWinOnFunctionCard: gameRule.allowWinOnFunctionCard ?? true,
+        rotateHandsOnZero,
+        swapHandsOnSeven,
+        specialRulesIsEnabled: rotateHandsOnZero || swapHandsOnSeven,
+    };
 }
 
 function handleRoomSockets(io: Server, socket: Socket) {
@@ -15,7 +38,7 @@ function handleRoomSockets(io: Server, socket: Socket) {
             gameRule,
         }: {
             playerName: string;
-            gameRule: GameRule;
+            gameRule: GameRule & { secondsPerRound?: number };
         }) => {
             const roomId = generateRoomId();
 
@@ -24,10 +47,11 @@ function handleRoomSockets(io: Server, socket: Socket) {
                 socketId: socket.id,
                 name: playerName,
             };
+            const normalizedRule = normalizeGameRule(gameRule);
             const roomState: RoomState = {
                 host: socket.data.sessionId,
-                players: [],
-                rule: gameRule,
+                players: [player],
+                rule: normalizedRule,
                 isStarted: false,
             };
             roomStates[roomId] = roomState;
@@ -37,9 +61,10 @@ function handleRoomSockets(io: Server, socket: Socket) {
 
             socket.emit("room_created", {
                 roomId,
-                players: roomStates[roomId].players,
-                gameRule,
+                players: roomState.players,
+                gameRule: normalizedRule,
             });
+            socket.emit("room_update", roomState);
         },
     );
 
@@ -54,13 +79,16 @@ function handleRoomSockets(io: Server, socket: Socket) {
                 return;
             }
 
-            if (
-                roomStates[roomId].players.some(
-                    (p) => p.id === socket.data.sessionId,
-                )
-            ) {
+            const existing = roomStates[roomId].players.find(
+                (p) => p.id === socket.data.sessionId,
+            );
+            if (existing) {
+                existing.socketId = socket.id;
+                socket.join(roomId);
+                socket.emit("room_update", roomStates[roomId]);
                 return;
             }
+
             const newPlayer = {
                 id: socket.data.sessionId,
                 socketId: socket.id,
@@ -76,16 +104,30 @@ function handleRoomSockets(io: Server, socket: Socket) {
 
     socket.on("starting_game", (roomId) => {
         console.log("starting_game");
-        let roomState = roomStates[roomId];
+        const roomState = roomStates[roomId];
 
-        if (roomState?.isStarted) {
+        if (!roomState) {
+            socket.emit("error_game_start", {
+                message: "Room not found",
+            });
+            return;
+        }
+
+        if (roomState.host !== socket.data.sessionId) {
+            socket.emit("error_game_start", {
+                message: "Only the host can start the game",
+            });
+            return;
+        }
+
+        if (roomState.isStarted) {
             socket.emit("error_game_start", {
                 message: "Game has already started",
             });
             return;
         }
 
-        if (roomState?.players.length < 2) {
+        if (roomState.players.length < 2) {
             socket.emit("error_game_start", {
                 message: "Need at least 2 players to start",
             });
@@ -93,29 +135,40 @@ function handleRoomSockets(io: Server, socket: Socket) {
         }
         startGame(io, roomState, roomId);
 
-        // io.to(roomId).emit("room_update", roomState);
         console.log(`Room ${roomId}: Game started`);
     });
 
     socket.on("leaving_room", ({ roomId, playerName }) => {
         console.log(`🚪 ${playerName} left room ${roomId}`);
-        for (const roomId in roomStates) {
-            const updatedPlayers = roomStates[roomId].players.filter(
-                (p) => p.id !== socket.data.sessionId,
-            );
 
-            socket.leave(roomId);
-
-            if (updatedPlayers.length === 0) {
-                delete roomStates[roomId];
-                console.log(`🧹 Room ${roomId} deleted due to no players.`);
-            } else {
-                roomStates[roomId].players = updatedPlayers;
-                io.to(roomId).emit("room_update", roomStates[roomId]);
-            }
+        const roomState = roomStates[roomId];
+        if (!roomState) {
+            return;
         }
 
-        console.log(`Socket ${socket.data.sessionId} disconnected`);
+        const sessionId = socket.data.sessionId;
+        const wasInGame = roomState.isStarted;
+
+        roomState.players = roomState.players.filter(
+            (p) => p.id !== sessionId,
+        );
+        socket.leave(roomId);
+
+        if (wasInGame) {
+            handlePlayerLeaveMidGame(io, roomId, sessionId);
+        }
+
+        if (roomState.players.length === 0) {
+            delete roomStates[roomId];
+            console.log(`🧹 Room ${roomId} deleted due to no players.`);
+        } else {
+            if (roomState.host === sessionId) {
+                roomState.host = roomState.players[0].id;
+            }
+            io.to(roomId).emit("room_update", roomState);
+        }
+
+        console.log(`Socket ${sessionId} left room ${roomId}`);
     });
 }
 

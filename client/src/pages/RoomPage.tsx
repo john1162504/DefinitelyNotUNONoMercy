@@ -1,11 +1,13 @@
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import LobbyView from "../views/LobbyView";
 import GameView from "../views/GameView";
-import socket from "../socket/socket";
+import getSocket from "../socket/socket";
 import type { RoomState, Card, GameState } from "../types";
 
 function RoomPage() {
+    const socket = getSocket();
+    const navigate = useNavigate();
     const { roomId } = useParams<{ roomId: string }>();
     const location = useLocation();
     const playerName = (location.state as { playerName: string })?.playerName;
@@ -20,10 +22,12 @@ function RoomPage() {
     const [hand, setHand] = useState<Card[]>([]);
 
     const memoisedHand = useMemo(() => hand, [hand]);
-
     const memoisedGameState = useMemo(() => gameState, [gameState]);
-
     const memoisedRoomState = useMemo(() => roomState, [roomState]);
+
+    const showError = useCallback((message: string) => {
+        setErrorMsg(message);
+    }, []);
 
     const playCards = useCallback(
         (cards: Card[], chosenColor?: string) => {
@@ -31,7 +35,7 @@ function RoomPage() {
                 socket.emit("play_card", { roomId, cards, chosenColor });
             }
         },
-        [roomId],
+        [roomId, socket],
     );
 
     const takeDraw = useCallback(
@@ -40,23 +44,30 @@ function RoomPage() {
                 socket.emit("take_draw", { roomId, count });
             }
         },
-        [roomId],
+        [roomId, socket],
+    );
+
+    const swapHands = useCallback(
+        (targetPlayerId: string) => {
+            if (roomId) {
+                socket.emit("swap_hands", { roomId, targetPlayerId });
+            }
+        },
+        [roomId, socket],
     );
 
     const startGame = useCallback(() => {
         if (roomId) {
             socket.emit("starting_game", roomId);
         }
-    }, [roomId]);
+    }, [roomId, socket]);
 
     const handleDisconnect = useCallback(() => {
         if (roomId && playerName) {
             socket.emit("leaving_room", { roomId, playerName });
         }
-        setRoomState(null);
-        setGameState(null);
-        setHand([]);
-    }, [roomId, playerName]);
+        navigate("/");
+    }, [roomId, playerName, navigate, socket]);
 
     function handleBackToLobby() {
         setGameOver(null);
@@ -66,21 +77,40 @@ function RoomPage() {
 
     useEffect(() => {
         function handleError(error: { message: string }) {
-            setErrorMsg(error.message);
+            showError(error.message);
         }
+        function handleGameStartError(error: { message: string }) {
+            showError(error.message);
+        }
+        function handleRoomNotFound(error: { message: string }) {
+            showError(error.message);
+            setTimeout(() => navigate("/"), 2500);
+        }
+
         socket.on("error", handleError);
+        socket.on("error_game_start", handleGameStartError);
+        socket.on("error_room_not_found", handleRoomNotFound);
+
         return () => {
             socket.off("error", handleError);
+            socket.off("error_game_start", handleGameStartError);
+            socket.off("error_room_not_found", handleRoomNotFound);
         };
-    }, []);
+    }, [socket, showError, navigate]);
 
     useEffect(() => {
         if (roomId && playerName) {
             socket.emit("joining_room", { roomId, playerName });
+            socket.emit("request_current_room_state", { roomId });
+            socket.emit("request_current_game_state", { roomId });
         }
 
-        const handleRoomUpdate = (roomState: RoomState) => {
-            setRoomState(roomState);
+        const handleRoomUpdate = (updated: RoomState) => {
+            setRoomState(updated);
+            if (!updated.isStarted) {
+                setGameState(null);
+                setHand([]);
+            }
         };
 
         socket.on("room_update", handleRoomUpdate);
@@ -88,7 +118,7 @@ function RoomPage() {
         return () => {
             socket.off("room_update", handleRoomUpdate);
         };
-    }, [roomId, playerName]);
+    }, [roomId, playerName, socket]);
 
     useEffect(() => {
         const handleStartGame = ({
@@ -103,13 +133,14 @@ function RoomPage() {
             setHand(hand);
             setGameState(gameState);
             setRoomState(roomState);
+            setGameOver(null);
         };
         socket.on("game_started", handleStartGame);
 
         return () => {
             socket.off("game_started", handleStartGame);
         };
-    }, []);
+    }, [socket]);
 
     useEffect(() => {
         function handleGameOver(payload: {
@@ -118,12 +149,14 @@ function RoomPage() {
             loser?: string;
         }) {
             setGameOver(payload);
+            setGameState(null);
+            setHand([]);
         }
         socket.on("game_over", handleGameOver);
         return () => {
             socket.off("game_over", handleGameOver);
         };
-    }, []);
+    }, [socket]);
 
     useEffect(() => {
         function handleGameUpdate({
@@ -142,18 +175,22 @@ function RoomPage() {
         return () => {
             socket.off("game_update", handleGameUpdate);
         };
-    }, []);
+    }, [socket]);
 
     useEffect(() => {
-        const handleRoomReconnect = (roomState: RoomState) => {
-            setRoomState(roomState);
+        const handleRoomReconnect = (updated: RoomState) => {
+            setRoomState(updated);
+            if (!updated.isStarted) {
+                setGameState(null);
+                setHand([]);
+            }
         };
 
         socket.on("current_room_state", handleRoomReconnect);
         return () => {
             socket.off("current_room_state", handleRoomReconnect);
         };
-    }, []);
+    }, [socket]);
 
     useEffect(() => {
         const handleGameReconnect = ({
@@ -168,13 +205,14 @@ function RoomPage() {
             setRoomState(roomState);
             setGameState(gameState);
             setHand(hand);
+            setGameOver(null);
         };
 
         socket.on("current_game_state", handleGameReconnect);
         return () => {
             socket.off("current_game_state", handleGameReconnect);
         };
-    }, []);
+    }, [socket]);
 
     useEffect(() => {
         function emitReconnect() {
@@ -193,7 +231,7 @@ function RoomPage() {
         return () => {
             socket.off("connect", emitReconnect);
         };
-    }, [roomId]);
+    }, [roomId, socket]);
 
     useEffect(() => {
         if (!errorMsg) return;
@@ -210,6 +248,12 @@ function RoomPage() {
             </main>
         );
     }
+
+    const inGame =
+        memoisedRoomState!.isStarted &&
+        memoisedGameState &&
+        !gameOver;
+
     return (
         <main className="min-h-screen flex items-center justify-center px-4">
             {errorMsg && (
@@ -224,18 +268,18 @@ function RoomPage() {
                 </div>
             )}
 
-            {/* Show GameView if game started and not ended */}
-            {memoisedRoomState?.isStarted && memoisedGameState ? (
+            {inGame ? (
                 <GameView
                     hand={memoisedHand}
-                    gameState={memoisedGameState}
+                    gameState={memoisedGameState!}
                     roomId={roomId!}
-                    roomState={memoisedRoomState}
+                    roomState={memoisedRoomState!}
                     onPlayCard={playCards}
                     onTakeDraw={takeDraw}
+                    onSwapHands={swapHands}
+                    onLeave={handleDisconnect}
                 />
             ) : (
-                // Show lobby if not started or if gameOver is visible
                 <LobbyView
                     roomState={memoisedRoomState!}
                     roomId={roomId || ""}
@@ -245,7 +289,6 @@ function RoomPage() {
                 />
             )}
 
-            {/* End Game Overlay always appears if triggered */}
             {gameOver && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center gap-4 max-w-sm">

@@ -1,8 +1,5 @@
-import { io } from "socket.io-client";
-
-const SERVER_URL = import.meta.env.DEV
-    ? "http://localhost:3001"
-    : import.meta.env.VITE_SERVER_URL || "";
+import { io, Socket } from "socket.io-client";
+import { SERVER_URL } from "../config/serverUrl";
 
 // Generate or reuse a session ID stored locally
 let sessionId = localStorage.getItem("sessionId");
@@ -11,9 +8,28 @@ if (!sessionId) {
     localStorage.setItem("sessionId", sessionId);
 }
 
-export const socket = io(SERVER_URL, {
-    transports: ["websocket"],
-    auth: { sessionId },
-});
+let socket: Socket | null = null;
 
-export default socket;
+export function initSocket(): Socket {
+    if (!socket) {
+        socket = io(SERVER_URL, {
+            transports: ["websocket"],
+            auth: { sessionId },
+        });
+    }
+
+    return socket;
+}
+
+export function getSocket(): Socket {
+    if (!socket) {
+        throw new Error("Socket not initialised yet");
+    }
+    return socket;
+}
+
+export function getSessionId(): string {
+    return sessionId!;
+}
+
+export default getSocket;

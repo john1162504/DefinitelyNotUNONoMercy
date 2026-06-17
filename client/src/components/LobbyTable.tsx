@@ -1,25 +1,25 @@
 import type { Player } from "@/types";
 import PlayerSeat from "./PlayerSeat";
 
-interface PlayerTableProps {
+interface LobbyTableProps {
     players: Player[];
-    currentPlayerName: string;
+    sessionId: string;
     hostId: string;
 }
 
 export default function LobbyTable({
     players,
-    currentPlayerName,
+    sessionId,
     hostId,
-}: PlayerTableProps) {
-    const userIdx = players.findIndex((p) => p.name === currentPlayerName);
-    const orderedPlayers = [
-        ...players.slice(userIdx),
-        ...players.slice(0, userIdx),
-    ];
+}: LobbyTableProps) {
+    const userIdx = players.findIndex((p) => p.id === sessionId);
+    const orderedPlayers =
+        userIdx >= 0
+            ? [...players.slice(userIdx), ...players.slice(0, userIdx)]
+            : players;
+
     return (
         <div className="relative w-full aspect-[16/9] mx-auto">
-            {/* Table background */}
             <div
                 className="absolute inset-0 rounded-full"
                 style={{
@@ -32,7 +32,6 @@ export default function LobbyTable({
                 }}
             />
 
-            {/* Player positions */}
             {orderedPlayers.map((player, idx) => {
                 const baseAngle = 90;
                 const angle = baseAngle + (360 / players.length) * idx;
@@ -46,7 +45,7 @@ export default function LobbyTable({
                     <PlayerSeat
                         key={player.id}
                         name={player.name}
-                        isYou={player.name === currentPlayerName}
+                        isYou={player.id === sessionId}
                         isHost={player.id === hostId}
                         xPercent={xPercent}
                         yPercent={yPercent}
