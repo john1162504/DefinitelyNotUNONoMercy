@@ -6,6 +6,7 @@ import {
     RoomState,
     Card,
     Player,
+    GameEvent,
 } from "../models/types";
 import {
     createDeck,
@@ -54,6 +55,10 @@ const FUNCTION_CARD_VALUES = new Set([
     "+10",
     "colorRoulette",
 ]);
+
+function emitGameEvent(io: Server, roomId: string, event: GameEvent) {
+    io.to(roomId).emit("game_event", event);
+}
 
 function getRuleFlags(roomId: string) {
     const rule = roomStates[roomId]?.rule;
@@ -148,11 +153,16 @@ function startGame(io: Server, roomState: RoomState, roomId: string) {
     const deck = createDeck(roomState.rule);
     const startCard = popStartableCard(deck);
 
+    const winnerIdx = roomState.lastWinnerId
+        ? roomState.players.findIndex((p) => p.id === roomState.lastWinnerId)
+        : -1;
+    const startingIndex = winnerIdx >= 0 ? winnerIdx : 0;
+
     const publicGameState: PublicGameState = {
         players: roomState.players,
         deck,
         discardPile: [startCard],
-        currentPlayerIndex: 0,
+        currentPlayerIndex: startingIndex,
         direction: 1,
         playerCardCounter: {},
         activeColor: undefined,
@@ -286,7 +296,13 @@ function tryGameOver(
         return false;
     }
 
-    broadcastGameOver({ io, game, roomId, winner: player.name });
+    broadcastGameOver({
+        io,
+        game,
+        roomId,
+        winner: player.name,
+        winnerId: player.id,
+    });
     return true;
 }
 
@@ -334,11 +350,15 @@ function handleGameSockets(io: Server, socket: Socket) {
                 return;
             }
 
-            const isEveryCardInHand = cards.every((card) =>
-                playerHand.some(
+            const handCopy = [...playerHand];
+            const isEveryCardInHand = cards.every((card) => {
+                const index = handCopy.findIndex(
                     (c) => c.color === card.color && c.value === card.value,
-                ),
-            );
+                );
+                if (index === -1) return false;
+                handCopy.splice(index, 1);
+                return true;
+            });
 
             if (!isEveryCardInHand) {
                 socket.emit("error", {
@@ -375,6 +395,8 @@ function handleGameSockets(io: Server, socket: Socket) {
                 if (index !== -1) playerHand.splice(index, 1);
                 game.discardPile.push(card);
             }
+
+            game.lastPlayedCards = [...cards];
 
             if (playerHand.length === 1) {
                 if (
@@ -428,6 +450,13 @@ function handleGameSockets(io: Server, socket: Socket) {
                     | "reverse+4"
                     | "+6"
                     | "+10";
+
+                emitGameEvent(io, roomId, {
+                    type: "drawStack",
+                    actorName: currentPlayer.name,
+                    value: cards[0].value,
+                    count: game.pendingDrawCount,
+                });
             }
 
             let skipTurnRotation = false;
@@ -435,6 +464,11 @@ function handleGameSockets(io: Server, socket: Socket) {
             if (cards[0].value === "skip") {
                 rotateBy(game, cards.length + 1);
                 skipTurnRotation = true;
+                emitGameEvent(io, roomId, {
+                    type: "skip",
+                    actorName: currentPlayer.name,
+                    count: cards.length,
+                });
             }
             if (
                 cards[0].value === "reverse" ||
@@ -449,26 +483,51 @@ function handleGameSockets(io: Server, socket: Socket) {
                 ) {
                     skipTurnRotation = true;
                 }
+                if (cards[0].value === "reverse" && cards.length % 2 === 1) {
+                    emitGameEvent(io, roomId, {
+                        type: "reverse",
+                        actorName: currentPlayer.name,
+                    });
+                }
             }
             if (cards[0].value === "skipAll") {
                 skipTurnRotation = true;
             }
             if (cards[0].value === "discardAll") {
-                const discardCards = [...playerHand].filter(
-                    (c) => c.color === cards[0].color,
-                );
-                for (const card of discardCards) {
-                    const index = playerHand.findIndex(
-                        (c) =>
-                            c.color === card.color && c.value === card.value,
+                const discardColors = [
+                    ...new Set(cards.map((c) => c.color)),
+                ] as Array<"red" | "green" | "blue" | "yellow">;
+                let totalDiscarded = 0;
+
+                for (const color of discardColors) {
+                    const discardCards = [...playerHand].filter(
+                        (c) => c.color === color,
                     );
-                    if (index !== -1) playerHand.splice(index, 1);
-                    game.discardPile.splice(
-                        game.discardPile.length - 1,
-                        0,
-                        card,
-                    );
+                    for (const card of discardCards) {
+                        const index = playerHand.findIndex(
+                            (c) =>
+                                c.color === card.color &&
+                                c.value === card.value,
+                        );
+                        if (index !== -1) playerHand.splice(index, 1);
+                        game.discardPile.splice(
+                            game.discardPile.length - 1,
+                            0,
+                            card,
+                        );
+                    }
+                    totalDiscarded += discardCards.length;
                 }
+
+                emitGameEvent(io, roomId, {
+                    type: "discardAll",
+                    actorName: currentPlayer.name,
+                    color:
+                        discardColors.length === 1
+                            ? discardColors[0]
+                            : undefined,
+                    count: totalDiscarded,
+                });
 
                 if (
                     tryGameOver(
@@ -488,6 +547,7 @@ function handleGameSockets(io: Server, socket: Socket) {
                 const roulettePlayer =
                     game.players[game.currentPlayerIndex];
 
+                const rouletteDrawn: Card[] = [];
                 while (true) {
                     const newCard = drawCard(
                         io,
@@ -499,11 +559,20 @@ function handleGameSockets(io: Server, socket: Socket) {
                     if (!newCard) break;
 
                     game.hands[roulettePlayer.id].push(newCard);
+                    rouletteDrawn.push(newCard);
 
                     if (newCard.color === chosenColor) {
                         break;
                     }
                 }
+
+                emitGameEvent(io, roomId, {
+                    type: "colorRoulette",
+                    actorName: currentPlayer.name,
+                    targetName: roulettePlayer.name,
+                    color: chosenColor,
+                    drawnCards: rouletteDrawn,
+                });
             }
 
             if (cards.some((c) => c.color === "wild")) {
@@ -514,6 +583,11 @@ function handleGameSockets(io: Server, socket: Socket) {
 
             if (rotateHandsOnZero && cards[0].value === "0") {
                 rotateAllHands(game, cards.length);
+                emitGameEvent(io, roomId, {
+                    type: "rotateHands",
+                    actorName: currentPlayer.name,
+                    count: cards.length,
+                });
             }
 
             if (swapHandsOnSeven && cards[0].value === "7") {
@@ -583,8 +657,18 @@ function handleGameSockets(io: Server, socket: Socket) {
                 return;
             }
 
+            const actorPlayer = game.players.find((p) => p.id === actorId);
+            const targetPlayer = game.players.find(
+                (p) => p.id === targetPlayerId,
+            );
             swapHands(game, actorId, targetPlayerId);
             game.pendingHandSwaps -= 1;
+
+            emitGameEvent(io, roomId, {
+                type: "swapHands",
+                actorName: actorPlayer?.name,
+                targetName: targetPlayer?.name,
+            });
 
             if (game.pendingHandSwaps <= 0) {
                 game.pendingHandSwaps = undefined;
@@ -762,12 +846,14 @@ function broadcastGameOver({
     game,
     roomId,
     winner,
+    winnerId,
     loser,
 }: {
     io: Server;
     game: GameState;
     roomId: string;
     winner?: string;
+    winnerId?: string;
     loser?: string;
 }) {
     clearTurnTimer(roomId);
@@ -788,6 +874,9 @@ function broadcastGameOver({
 
     if (roomStates[roomId]) {
         roomStates[roomId].isStarted = false;
+        if (winnerId) {
+            roomStates[roomId].lastWinnerId = winnerId;
+        }
         io.to(roomId).emit("room_update", roomStates[roomId]);
     }
 }
@@ -815,6 +904,7 @@ function handlePlayerLeaveMidGame(
             game,
             roomId,
             winner: game.players[0]?.name,
+            winnerId: game.players[0]?.id,
         });
         return;
     }

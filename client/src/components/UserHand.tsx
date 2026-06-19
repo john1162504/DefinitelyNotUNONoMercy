@@ -5,6 +5,7 @@ import {
     PLAYABLE_COLORS,
     type PlayableColor,
 } from "@/lib/cardValidation";
+import { getCardInfo } from "@/lib/cardInfo";
 import React, { useEffect, useState } from "react";
 
 const CARD_WIDTH_RATIO = 1 / 13.5;
@@ -22,6 +23,7 @@ const cardImgPath = (card: Card) =>
 interface UserHandProps {
     hand: Card[];
     tableWidth: number;
+    tableHeight?: number;
     gameState: GameState;
     isYourTurn: boolean;
     onPlayCard?: (cards: Card[], chosenColor?: string) => void;
@@ -40,6 +42,7 @@ function sortByColor(a: Card, b: Card) {
 const UserHand: React.FC<UserHandProps> = ({
     hand,
     tableWidth,
+    tableHeight,
     gameState,
     isYourTurn,
     onPlayCard,
@@ -48,6 +51,7 @@ const UserHand: React.FC<UserHandProps> = ({
     const [selectedWildColor, setSelectedWildColor] =
         useState<PlayableColor | null>(null);
     const [validationHint, setValidationHint] = useState<string | null>(null);
+    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
     useEffect(() => {
         setSelectedWildColor(null);
@@ -58,8 +62,22 @@ const UserHand: React.FC<UserHandProps> = ({
         return null;
     }
 
-    const cardWidth = Math.max(30, tableWidth * CARD_WIDTH_RATIO);
-    const cardHeight = cardWidth * CARD_HEIGHT_RATIO;
+    let cardWidth = Math.max(22, tableWidth * CARD_WIDTH_RATIO);
+    let cardHeight = cardWidth * CARD_HEIGHT_RATIO;
+
+    // Cap card height so a large hand never pushes content off-screen or grows
+    // disproportionately on short / mobile viewports.
+    const viewportCap =
+        typeof window !== "undefined" ? window.innerHeight * 0.22 : 140;
+    const maxCardHeight = Math.min(
+        140,
+        tableHeight ? tableHeight * 0.45 : 140,
+        viewportCap,
+    );
+    if (cardHeight > maxCardHeight) {
+        cardHeight = maxCardHeight;
+        cardWidth = cardHeight / CARD_HEIGHT_RATIO;
+    }
 
     const sortedHand = [...hand].sort(sortByColor);
 
@@ -126,7 +144,7 @@ const UserHand: React.FC<UserHandProps> = ({
     };
 
     return (
-        <div className="relative flex flex-col items-center justify-center pointer-events-none w-full py-8">
+        <div className="relative flex flex-col items-center justify-center pointer-events-none w-full py-2">
             {hasWild && hasSelection && (
                 <div className="mb-3 pointer-events-auto flex flex-col items-center gap-2 p-3 bg-white rounded-xl shadow-md border-2 border-purple-300">
                     <span className="text-sm font-semibold text-gray-800">
@@ -196,6 +214,7 @@ const UserHand: React.FC<UserHandProps> = ({
             >
                 {sortedHand.map((card, i) => {
                     const isSelected = selectedIndices.includes(i);
+                    const isHovered = hoveredIndex === i;
                     const selectable =
                         isYourTurn &&
                         (isSelected ||
@@ -209,61 +228,96 @@ const UserHand: React.FC<UserHandProps> = ({
                         isYourTurn &&
                         !hasSelection &&
                         canSelectCard(card, [], gameState);
+                    const info = getCardInfo(card.value);
 
                     return (
-                        <img
+                        <div
                             key={`${card.color}-${card.value}-${i}`}
-                            src={cardImgPath(card)}
-                            alt={`${card.color} ${card.value}`}
+                            className="group"
                             style={{
                                 position: "absolute",
                                 left: i * actualSpacing,
                                 width: `${cardWidth}px`,
                                 height: `${cardHeight}px`,
-                                zIndex: isSelected ? i + 100 : i,
-                                cursor: isYourTurn
-                                    ? selectable
-                                        ? "pointer"
-                                        : "not-allowed"
-                                    : "not-allowed",
-                                transition:
-                                    "box-shadow 0.2s, transform 0.1s, opacity 0.2s, filter 0.2s",
-                                boxShadow: isSelected
-                                    ? "0 0 0 3px gold, 0 4px 12px rgba(0,0,0,0.25)"
-                                    : highlightWhenIdle
-                                      ? "0 0 0 2px rgba(34,197,94,0.6), 0 2px 8px rgba(0,0,0,0.15)"
-                                      : "0 2px 8px rgba(0,0,0,0.15)",
-                                pointerEvents: isYourTurn ? "auto" : "none",
-                                border: "none",
-                                background: "#fff",
-                                opacity: dimmed ? 0.3 : isYourTurn ? 1 : 0.7,
-                                filter: dimmed ? "grayscale(0.6)" : "none",
-                                transform: isSelected ? "translateY(-8px)" : undefined,
+                                zIndex: isHovered
+                                    ? 500
+                                    : isSelected
+                                      ? i + 100
+                                      : i,
+                                pointerEvents: "auto",
                             }}
-                            onClick={() => toggleSelect(i)}
-                            onDoubleClick={() => {
-                                if (!isYourTurn) return;
-                                if (!selectedIndices.includes(i)) {
-                                    if (
-                                        !canSelectCard(
-                                            card,
-                                            selectedCards,
-                                            gameState,
-                                        )
-                                    ) {
-                                        return;
+                            onMouseEnter={() => setHoveredIndex(i)}
+                            onMouseLeave={() =>
+                                setHoveredIndex((prev) =>
+                                    prev === i ? null : prev,
+                                )
+                            }
+                        >
+                            <img
+                                src={cardImgPath(card)}
+                                alt={`${card.color} ${card.value}`}
+                                title={`${info.name} — ${info.description}`}
+                                style={{
+                                    display: "block",
+                                    width: "100%",
+                                    height: "100%",
+                                    cursor: isYourTurn
+                                        ? selectable
+                                            ? "pointer"
+                                            : "not-allowed"
+                                        : "default",
+                                    transition:
+                                        "box-shadow 0.2s, transform 0.1s, opacity 0.2s, filter 0.2s",
+                                    boxShadow: isSelected
+                                        ? "0 0 0 3px gold, 0 4px 12px rgba(0,0,0,0.25)"
+                                        : highlightWhenIdle
+                                          ? "0 0 0 2px rgba(34,197,94,0.6), 0 2px 8px rgba(0,0,0,0.15)"
+                                          : "0 2px 8px rgba(0,0,0,0.15)",
+                                    border: "none",
+                                    background: "#fff",
+                                    opacity: dimmed
+                                        ? 0.3
+                                        : isYourTurn
+                                          ? 1
+                                          : 0.7,
+                                    filter: dimmed ? "grayscale(0.6)" : "none",
+                                    transform: isSelected
+                                        ? "translateY(-8px)"
+                                        : undefined,
+                                }}
+                                onClick={() => toggleSelect(i)}
+                                onDoubleClick={() => {
+                                    if (!isYourTurn) return;
+                                    if (!selectedIndices.includes(i)) {
+                                        if (
+                                            !canSelectCard(
+                                                card,
+                                                selectedCards,
+                                                gameState,
+                                            )
+                                        ) {
+                                            return;
+                                        }
+                                        setSelectedIndices([
+                                            ...selectedIndices,
+                                            i,
+                                        ]);
                                     }
-                                    setSelectedIndices([
-                                        ...selectedIndices,
-                                        i,
-                                    ]);
-                                }
-                                if (card.color !== "wild") {
-                                    handlePlay();
-                                }
-                            }}
-                            draggable={false}
-                        />
+                                    if (card.color !== "wild") {
+                                        handlePlay();
+                                    }
+                                }}
+                                draggable={false}
+                            />
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-[600] mb-2 w-44 -translate-x-1/2 rounded-lg bg-gray-900/95 px-3 py-2 text-left opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                                <div className="text-xs font-bold text-white">
+                                    {info.name}
+                                </div>
+                                <div className="mt-0.5 text-[11px] leading-snug text-gray-200">
+                                    {info.description}
+                                </div>
+                            </div>
+                        </div>
                     );
                 })}
             </div>

@@ -1,9 +1,12 @@
 import { useLocation, useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import LobbyView from "../views/LobbyView";
 import GameView from "../views/GameView";
+import OrientationGate from "../components/OrientationGate";
 import getSocket from "../socket/socket";
-import type { RoomState, Card, GameState } from "../types";
+import type { RoomState, Card, GameState, GameEvent } from "../types";
+
+export type TimedGameEvent = GameEvent & { eventId: number };
 
 function RoomPage() {
     const socket = getSocket();
@@ -20,6 +23,8 @@ function RoomPage() {
     const [roomState, setRoomState] = useState<RoomState | null>(null);
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [hand, setHand] = useState<Card[]>([]);
+    const [latestEvent, setLatestEvent] = useState<TimedGameEvent | null>(null);
+    const eventCounterRef = useRef(0);
 
     const memoisedHand = useMemo(() => hand, [hand]);
     const memoisedGameState = useMemo(() => gameState, [gameState]);
@@ -215,6 +220,17 @@ function RoomPage() {
     }, [socket]);
 
     useEffect(() => {
+        function handleGameEvent(event: GameEvent) {
+            eventCounterRef.current += 1;
+            setLatestEvent({ ...event, eventId: eventCounterRef.current });
+        }
+        socket.on("game_event", handleGameEvent);
+        return () => {
+            socket.off("game_event", handleGameEvent);
+        };
+    }, [socket]);
+
+    useEffect(() => {
         function emitReconnect() {
             const sessionId = (socket.auth as { sessionId?: string })
                 ?.sessionId;
@@ -255,7 +271,7 @@ function RoomPage() {
         !gameOver;
 
     return (
-        <main className="min-h-screen flex items-center justify-center px-4">
+        <main className="min-h-screen w-full overflow-y-auto">
             {errorMsg && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-3 rounded shadow-lg z-50 max-w-sm">
                     <p className="mb-2">{errorMsg}</p>
@@ -268,25 +284,30 @@ function RoomPage() {
                 </div>
             )}
 
+            {inGame && <OrientationGate />}
+
             {inGame ? (
                 <GameView
                     hand={memoisedHand}
                     gameState={memoisedGameState!}
                     roomId={roomId!}
                     roomState={memoisedRoomState!}
+                    latestEvent={latestEvent}
                     onPlayCard={playCards}
                     onTakeDraw={takeDraw}
                     onSwapHands={swapHands}
                     onLeave={handleDisconnect}
                 />
             ) : (
-                <LobbyView
-                    roomState={memoisedRoomState!}
-                    roomId={roomId || ""}
-                    playerName={playerName || ""}
-                    onStartGame={startGame}
-                    handleDisconect={handleDisconnect}
-                />
+                <div className="flex min-h-screen items-center justify-center px-4 py-6">
+                    <LobbyView
+                        roomState={memoisedRoomState!}
+                        roomId={roomId || ""}
+                        playerName={playerName || ""}
+                        onStartGame={startGame}
+                        handleDisconect={handleDisconnect}
+                    />
+                </div>
             )}
 
             {gameOver && (

@@ -28,35 +28,41 @@ export default function LobbyView({
     const playersNeeded = Math.max(0, MIN_PLAYERS - roomState.players.length);
 
     return (
-        <Card className="w-full max-w-2xl p-6">
+        <Card className="w-full max-w-2xl rounded-2xl bg-slate-900/75 p-6 backdrop-blur-sm">
             <CardHeader className="text-center pb-4">
-                <CardTitle className="text-4xl font-bold mb-2">
+                <CardTitle className="mb-2 text-4xl font-bold text-white drop-shadow">
                     UNO No Mercy
                 </CardTitle>
-                <p className="text-xl text-gray-700">
-                    Room: <span className="font-mono font-bold">{roomId}</span>
+                <p className="text-xl text-white">
+                    Room:{" "}
+                    <span className="font-mono font-bold text-yellow-300">
+                        {roomId}
+                    </span>
                 </p>
-                <p className="text-muted-foreground">
-                    Welcome, <span className="font-semibold">{playerName}</span>
+                <p className="text-gray-100">
+                    Welcome,{" "}
+                    <span className="font-semibold text-white">
+                        {playerName}
+                    </span>
                     !
                 </p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="mt-1 text-sm text-gray-200">
                     {roomState.players.length} player
                     {roomState.players.length !== 1 ? "s" : ""} in room
                 </p>
                 {isHost && (
-                    <p className="text-sm text-blue-600 mt-2">
+                    <p className="mt-2 text-sm font-semibold text-blue-300">
                         👑 You are the host
                     </p>
                 )}
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="mt-2 text-xs text-gray-300">
                     {(roomState.rule.allowWinOnFunctionCard ?? true)
                         ? "Win allowed on function cards"
                         : "Function-card finish: draw 2 (no win)"}
                 </p>
                 {(roomState.rule.rotateHandsOnZero ||
                     roomState.rule.swapHandsOnSeven) && (
-                    <ul className="text-xs text-purple-700 mt-1 space-y-0.5 list-none">
+                    <ul className="mt-1 list-none space-y-0.5 text-xs text-purple-200">
                         {roomState.rule.rotateHandsOnZero && (
                             <li>· 0 rotates all hands</li>
                         )}

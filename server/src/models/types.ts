@@ -52,6 +52,27 @@ interface RoomState {
     players: Player[];
     rule: GameRule;
     isStarted: boolean;
+    /** Session id of the player who won the previous game; starts next game. */
+    lastWinnerId?: string;
+}
+
+type GameEventType =
+    | "colorRoulette"
+    | "swapHands"
+    | "rotateHands"
+    | "skip"
+    | "reverse"
+    | "drawStack"
+    | "discardAll";
+
+interface GameEvent {
+    type: GameEventType;
+    actorName?: string;
+    targetName?: string;
+    color?: "red" | "green" | "blue" | "yellow";
+    drawnCards?: Card[];
+    count?: number;
+    value?: Value;
 }
 
 interface PublicGameState {
@@ -73,6 +94,8 @@ interface PublicGameState {
     pendingHandSwaps?: number;
     handSwapPlayerId?: string;
     turnExpiresAt?: number;
+    /** Cards played in the most recent play, shown spread on the table. */
+    lastPlayedCards?: Card[];
 }
 
 interface GameState extends PublicGameState {
@@ -88,4 +111,6 @@ export {
     GameRule,
     GameState,
     PublicGameState,
+    GameEvent,
+    GameEventType,
 };

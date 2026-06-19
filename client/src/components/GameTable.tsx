@@ -33,22 +33,43 @@ export default function GameTable({
     const discardPile = gameState.discardPile;
     const deck = gameState.deck;
 
-    const tableRef = useRef<HTMLDivElement>(null);
-    const [tableSize, setTableSize] = useState({ width: 800, height: 450 });
+    const areaRef = useRef<HTMLDivElement>(null);
+    const [area, setArea] = useState({ width: 800, height: 450 });
 
     useEffect(() => {
+        const el = areaRef.current;
+        if (!el) return;
+
         function updateSize() {
-            if (tableRef.current) {
-                setTableSize({
-                    width: tableRef.current.offsetWidth,
-                    height: tableRef.current.offsetHeight,
+            if (el) {
+                setArea({
+                    width: el.clientWidth,
+                    height: el.clientHeight,
                 });
             }
         }
+
         updateSize();
+        const ro = new ResizeObserver(updateSize);
+        ro.observe(el);
         window.addEventListener("resize", updateSize);
-        return () => window.removeEventListener("resize", updateSize);
+        return () => {
+            ro.disconnect();
+            window.removeEventListener("resize", updateSize);
+        };
     }, []);
+
+    // Largest 16:9 oval that fits the available area, so seats/hands/center
+    // all stay proportional (and don't overlap) on short/wide mobile screens.
+    const ovalWidth = Math.max(
+        200,
+        Math.min(area.width, area.height * (16 / 9)),
+    );
+    const ovalHeight = ovalWidth * (9 / 16);
+    const seatDiameter = Math.max(30, Math.min(78, ovalWidth * 0.09));
+
+    const currentPlayerId =
+        gameState.players[gameState.currentPlayerIndex]?.id;
 
     const userIdx = players.findIndex((p) => p.id === sessionId);
     const orderedPlayers =
@@ -59,17 +80,16 @@ export default function GameTable({
     const stackActive = (gameState.pendingDrawCount ?? 0) > 0;
 
     return (
-        <div className="relative w-full mx-auto">
+        <div className="relative mx-auto flex h-full w-full flex-col">
             <div
-                className="relative w-full aspect-[16/9]"
-                style={{
-                    position: "relative",
-                }}
+                ref={areaRef}
+                className="relative flex min-h-0 w-full flex-1 items-center justify-center"
             >
                 <div
-                    ref={tableRef}
-                    className="absolute inset-0 rounded-full"
+                    className="relative rounded-full"
                     style={{
+                        width: `${ovalWidth}px`,
+                        height: `${ovalHeight}px`,
                         backgroundImage: `url('${
                             import.meta.env.BASE_URL
                         }assets/Tables/table_green.png')`,
@@ -81,10 +101,12 @@ export default function GameTable({
                     <CenterPile
                         deckCount={deck.length}
                         topDiscard={discardPile[discardPile.length - 1]}
+                        lastPlayedCards={gameState.lastPlayedCards}
                         direction={gameState.direction}
                         activeColor={gameState.activeColor}
                         isYourTurn={mayAct}
                         highlightDraw={mayAct && stackActive}
+                        tableWidth={ovalWidth}
                         onTakeDraw={onTakeDraw}
                     />
 
@@ -104,15 +126,14 @@ export default function GameTable({
                                     isYou={player.id === sessionId}
                                     isHost={player.id === hostId}
                                     isCurrentTurn={
-                                        gameState.players[
-                                            gameState.currentPlayerIndex
-                                        ].id === player.id
+                                        currentPlayerId === player.id
                                     }
                                     cardCount={
                                         gameState.playerCardCounter[player.id]
                                     }
                                     xPercent={xPercent}
                                     yPercent={yPercent}
+                                    diameter={seatDiameter}
                                 />
                                 {player.id !== sessionId && (
                                     <FannedHand
@@ -123,7 +144,7 @@ export default function GameTable({
                                         }
                                         xPercent={xPercent}
                                         yPercent={yPercent}
-                                        tableWidth={tableSize.width}
+                                        tableWidth={ovalWidth}
                                     />
                                 )}
                             </Fragment>
@@ -133,11 +154,12 @@ export default function GameTable({
             </div>
 
             <div
-                className={`relative w-full ${!mayAct ? "opacity-60 pointer-events-none" : ""}`}
+                className={`relative w-full shrink-0 ${!mayAct ? "opacity-60 pointer-events-none" : ""}`}
             >
                 <UserHand
                     hand={hand}
-                    tableWidth={tableSize.width}
+                    tableWidth={ovalWidth}
+                    tableHeight={ovalHeight}
                     gameState={gameState}
                     isYourTurn={mayAct}
                     onPlayCard={onPlayCard}

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
 import CreateRoomPage from "./pages/CreateRoomPage";
 import RoomPage from "./pages/RoomPage";
+import RulesPage from "./pages/RulesPage";
 import "./index.css";
 import { ServerStartupGate } from "./components/ServerStartupGate";
 
@@ -14,6 +15,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Routes>
                     <Route path="/" element={<App />} />
                     <Route path="/create" element={<CreateRoomPage />} />
+                    <Route path="/rules" element={<RulesPage />} />
                     <Route path="/room/:roomId" element={<RoomPage />} />
                 </Routes>
             </BrowserRouter>

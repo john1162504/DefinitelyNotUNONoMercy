@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -91,6 +91,15 @@ function App() {
                 <Button variant="outline" onClick={handleCreate}>
                     Create Room
                 </Button>
+
+                <div>
+                    <Link
+                        to="/rules"
+                        className="text-sm font-medium text-white underline-offset-4 hover:underline"
+                    >
+                        How to play
+                    </Link>
+                </div>
             </div>
         </main>
     );

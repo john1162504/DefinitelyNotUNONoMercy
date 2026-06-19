@@ -49,6 +49,26 @@ interface RoomState {
     players: Player[];
     rule: GameRule;
     isStarted: boolean;
+    lastWinnerId?: string;
+}
+
+type GameEventType =
+    | "colorRoulette"
+    | "swapHands"
+    | "rotateHands"
+    | "skip"
+    | "reverse"
+    | "drawStack"
+    | "discardAll";
+
+interface GameEvent {
+    type: GameEventType;
+    actorName?: string;
+    targetName?: string;
+    color?: "red" | "green" | "blue" | "yellow";
+    drawnCards?: Card[];
+    count?: number;
+    value?: Value;
 }
 
 interface GameState {
@@ -69,6 +89,17 @@ interface GameState {
     pendingHandSwaps?: number;
     handSwapPlayerId?: string;
     turnExpiresAt?: number;
+    lastPlayedCards?: Card[];
 }
 
-export type { Color, Value, Card, Player, RoomState, GameRule, GameState };
+export type {
+    Color,
+    Value,
+    Card,
+    Player,
+    RoomState,
+    GameRule,
+    GameState,
+    GameEvent,
+    GameEventType,
+};

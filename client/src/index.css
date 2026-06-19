@@ -62,7 +62,20 @@
     * {
         @apply border-border;
     }
+    html,
+    body {
+        @apply min-h-screen;
+        overflow-x: hidden;
+    }
     body {
         @apply bg-[url('/assets/Backgrounds/background_2.png')] bg-cover bg-center min-h-screen;
+        -webkit-text-size-adjust: 100%;
+    }
+}
+
+/* Fallback rotate hint for small portrait screens (covers JS-disabled cases). */
+@media (orientation: portrait) and (max-width: 900px) {
+    .rotate-hint-fallback {
+        display: flex;
     }
 }
