@@ -10,11 +10,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: [
-            "https://john1162504.github.io/DefinitelyNotUNONoMercy",
-            "http://localhost:5173",
-            process.env.CLIENT_URL || "",
-        ].filter(Boolean),
+        origin: ["http://localhost:5173", process.env.CLIENT_URL || ""].filter(
+            Boolean,
+        ),
         methods: ["GET", "POST"],
     },
 });
