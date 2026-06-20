@@ -34,9 +34,8 @@ interface Player {
 }
 
 interface GameRule {
-    numOfDraWSix: number;
+    numOfDrawSix: number;
     numOfDrawTen: number;
-    secondPerRound: number;
     secondsPerRound: number;
     specialRulesIsEnabled?: boolean;
     rotateHandsOnZero: boolean;
@@ -73,13 +72,13 @@ interface GameEvent {
 
 interface GameState {
     players: Player[];
-    deck: Card[];
+    deckCount: number;
     discardPile: Card[];
     currentPlayerIndex: number;
     playerCardCounter: Record<string, number>;
     direction: 1 | -1; // 1 for clockwise, -1 for counter-clockwise
     pendingDrawCount?: number;
-    miniumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
+    minimumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
     activeColor?: "red" | "green" | "blue" | "yellow";
     unoChallenge?: {
         playerId: string;

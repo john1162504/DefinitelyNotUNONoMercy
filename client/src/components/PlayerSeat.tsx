@@ -12,6 +12,17 @@ interface PlayerSeatProps {
     diameter?: number;
 }
 
+/** Up to two leading characters of the name, for the avatar token. */
+function getInitials(name: string): string {
+    const trimmed = name.trim();
+    if (!trimmed) return "?";
+    const parts = trimmed.split(/[\s-_]+/).filter(Boolean);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return trimmed.slice(0, 2).toUpperCase();
+}
+
 function PlayerSeat({
     name,
     isYou,
@@ -22,7 +33,8 @@ function PlayerSeat({
     yPercent,
     diameter = 64,
 }: PlayerSeatProps) {
-    const nameFontSize = Math.max(8, Math.min(16, diameter * 0.22));
+    const initialsFontSize = Math.max(10, Math.min(22, diameter * 0.36));
+    const nameFontSize = Math.max(9, Math.min(14, diameter * 0.2));
     const crownSize = Math.max(12, Math.min(24, diameter * 0.32));
     const badgeFontSize = Math.max(7, Math.min(11, diameter * 0.16));
 
@@ -54,13 +66,10 @@ function PlayerSeat({
                         />
                     )}
                     <span
-                        className="font-semibold text-center truncate"
-                        style={{
-                            fontSize: `${nameFontSize}px`,
-                            maxWidth: `${diameter * 0.85}px`,
-                        }}
+                        className="font-bold leading-none text-gray-800"
+                        style={{ fontSize: `${initialsFontSize}px` }}
                     >
-                        {name}
+                        {getInitials(name)}
                     </span>
                 </div>
                 {isYou && (
@@ -72,9 +81,19 @@ function PlayerSeat({
                     </span>
                 )}
             </div>
+            <span
+                className="mt-2 max-w-full truncate rounded bg-black/55 px-1.5 py-0.5 text-center font-semibold text-white shadow"
+                style={{
+                    fontSize: `${nameFontSize}px`,
+                    maxWidth: `${Math.max(64, diameter * 2.4)}px`,
+                }}
+                title={name}
+            >
+                {name}
+            </span>
             {cardCount !== undefined && (
                 <span
-                    className={`font-bold bg-blue-500 text-white px-1.5 rounded-full ${isYou ? "mt-3" : "mt-0.5"}`}
+                    className="mt-1 font-bold bg-blue-500 text-white px-1.5 rounded-full"
                     style={{ fontSize: `${badgeFontSize}px` }}
                 >
                     {cardCount}

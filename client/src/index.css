@@ -68,7 +68,7 @@
         overflow-x: hidden;
     }
     body {
-        @apply bg-[url('/assets/Backgrounds/background_2.png')] bg-cover bg-center min-h-screen;
+        @apply min-h-screen;
         -webkit-text-size-adjust: 100%;
     }
 }

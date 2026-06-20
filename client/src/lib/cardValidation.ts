@@ -18,31 +18,12 @@ export function canPlayCards(
         return { valid: false, reason: "No cards selected" };
     }
 
-    const topCard = gameState.discardPile[gameState.discardPile.length - 1];
+    const topCard = gameState.discardPile?.[gameState.discardPile.length - 1];
     if (!topCard) {
         return { valid: false, reason: "No top card" };
     }
 
     const colorToMatch = gameState.activeColor || topCard.color;
-
-    const isValidFirstCard =
-        cards[0].color === colorToMatch ||
-        cards[0].value === topCard.value ||
-        cards[0].color === "wild";
-
-    if (!isValidFirstCard) {
-        return { valid: false, reason: "Must match color or value" };
-    }
-
-    if (
-        gameState.pendingDrawCount &&
-        !cards.every((c) => DRAW_CARD_VALUES.includes(c.value))
-    ) {
-        return {
-            valid: false,
-            reason: "Must stack with a draw card (+2 or higher)",
-        };
-    }
 
     if (cards.length > 1) {
         const isSameValue = cards.every((c) => c.value === cards[0].value);
@@ -51,17 +32,44 @@ export function canPlayCards(
         }
     }
 
-    if (gameState.pendingDrawCount && gameState.miniumDrawValue) {
-        const minStrength = DRAW_CARD_STRENGTH[gameState.miniumDrawValue];
-        const isHigher = cards.every(
-            (c) => (DRAW_CARD_STRENGTH[c.value] ?? 0) >= minStrength,
-        );
-        if (!isHigher) {
+    // While a draw stack is active, any equal-or-higher draw card may be
+    // stacked regardless of color/value match. Check strength first and skip
+    // the normal first-card color/value match.
+    if (gameState.pendingDrawCount) {
+        if (!cards.every((c) => DRAW_CARD_VALUES.includes(c.value))) {
             return {
                 valid: false,
-                reason: `Must play ${gameState.miniumDrawValue} or higher`,
+                reason: "Must stack with a draw card (+2 or higher)",
             };
         }
+
+        if (gameState.minimumDrawValue) {
+            const minStrength = DRAW_CARD_STRENGTH[gameState.minimumDrawValue];
+            const isHigher = cards.every(
+                (c) => (DRAW_CARD_STRENGTH[c.value] ?? 0) >= minStrength,
+            );
+            if (!isHigher) {
+                return {
+                    valid: false,
+                    reason: `Must play ${gameState.minimumDrawValue} or higher`,
+                };
+            }
+        }
+
+        if (cards.some((c) => c.color === "wild") && !chosenColor) {
+            return { valid: false, reason: "Choose a color for wild cards" };
+        }
+
+        return { valid: true };
+    }
+
+    const isValidFirstCard =
+        cards[0].color === colorToMatch ||
+        cards[0].value === topCard.value ||
+        cards[0].color === "wild";
+
+    if (!isValidFirstCard) {
+        return { valid: false, reason: "Must match color or value" };
     }
 
     if (cards.some((c) => c.color === "wild") && !chosenColor) {
@@ -78,37 +86,35 @@ export function canSelectCards(
 ): boolean {
     if (!cards.length) return false;
 
-    const topCard = gameState.discardPile[gameState.discardPile.length - 1];
+    const topCard = gameState.discardPile?.[gameState.discardPile.length - 1];
     if (!topCard) return false;
 
     const colorToMatch = gameState.activeColor || topCard.color;
+
+    if (cards.length > 1) {
+        if (!cards.every((c) => c.value === cards[0].value)) return false;
+    }
+
+    // Stacking only depends on draw-card strength, not color/value match.
+    if (gameState.pendingDrawCount) {
+        if (!cards.every((c) => DRAW_CARD_VALUES.includes(c.value))) {
+            return false;
+        }
+        if (gameState.minimumDrawValue) {
+            const minStrength = DRAW_CARD_STRENGTH[gameState.minimumDrawValue];
+            return cards.every(
+                (c) => (DRAW_CARD_STRENGTH[c.value] ?? 0) >= minStrength,
+            );
+        }
+        return true;
+    }
 
     const isValidFirstCard =
         cards[0].color === colorToMatch ||
         cards[0].value === topCard.value ||
         cards[0].color === "wild";
 
-    if (!isValidFirstCard) return false;
-
-    if (
-        gameState.pendingDrawCount &&
-        !cards.every((c) => DRAW_CARD_VALUES.includes(c.value))
-    ) {
-        return false;
-    }
-
-    if (cards.length > 1) {
-        if (!cards.every((c) => c.value === cards[0].value)) return false;
-    }
-
-    if (gameState.pendingDrawCount && gameState.miniumDrawValue) {
-        const minStrength = DRAW_CARD_STRENGTH[gameState.miniumDrawValue];
-        return cards.every(
-            (c) => (DRAW_CARD_STRENGTH[c.value] ?? 0) >= minStrength,
-        );
-    }
-
-    return true;
+    return isValidFirstCard;
 }
 
 /** Whether a card may be selected given the current selection. */

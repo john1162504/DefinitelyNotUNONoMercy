@@ -86,7 +86,7 @@ export default function GameView({
             {gameState.pendingDrawCount ? (
                 <DrawStackBanner
                     pendingDrawCount={gameState.pendingDrawCount}
-                    miniumDrawValue={gameState.miniumDrawValue}
+                    minimumDrawValue={gameState.minimumDrawValue}
                     isYourTurn={isYourTurn}
                     currentPlayerName={currentPlayer?.name}
                 />
@@ -156,7 +156,12 @@ export default function GameView({
             <div className="fixed top-2 right-2 sm:top-4 sm:right-4 z-40 flex gap-1.5 sm:gap-2">
                 <Button
                     variant="outline"
-                    onClick={() => window.open("/rules", "_blank")}
+                    onClick={() =>
+                        window.open(
+                            `${import.meta.env.BASE_URL}rules`,
+                            "_blank",
+                        )
+                    }
                     className="h-8 px-2 text-xs sm:h-9 sm:px-4 sm:text-sm"
                 >
                     How to play
@@ -170,9 +175,9 @@ export default function GameView({
                 </Button>
             </div>
 
-            <div className="fixed inset-0 flex flex-col overflow-hidden px-2 pb-2 pt-20">
-                <div className="flex min-h-0 w-full flex-1 items-center justify-center">
-                    <div className="relative h-full w-full max-w-5xl">
+            <div className="fixed inset-0 z-30 flex h-[100dvh] w-full flex-col overflow-hidden px-2 pb-2 pt-16 sm:pt-20">
+                <div className="flex min-h-0 w-full flex-1 items-stretch justify-center">
+                    <div className="relative flex h-full min-h-0 w-full max-w-5xl flex-col">
                         <GameTable
                             roomId={roomId}
                             players={roomState.players}

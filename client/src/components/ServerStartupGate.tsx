@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { waitForServer } from "@/lib/waitForServer";
-import { initSocket } from "@/socket/socket";
+import { initSocket, isSocketInitialised } from "@/socket/socket";
 import { Button } from "@/components/ui/button";
 
 type GateStatus = "checking" | "ready" | "failed";
 
 export function ServerStartupGate({ children }: { children: React.ReactNode }) {
-    const [status, setStatus] = useState<GateStatus>("checking");
+    // If we've already connected once this session, don't gate again on
+    // subsequent navigations between game routes.
+    const [status, setStatus] = useState<GateStatus>(() =>
+        isSocketInitialised() ? "ready" : "checking",
+    );
     const [attempt, setAttempt] = useState(1);
     const [checkKey, setCheckKey] = useState(0);
 
     const runCheck = useCallback(async () => {
+        if (isSocketInitialised()) {
+            setStatus("ready");
+            return;
+        }
+
         setStatus("checking");
         setAttempt(1);
 

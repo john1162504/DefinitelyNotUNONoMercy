@@ -58,7 +58,7 @@ export default function EventAnnouncer({ event }: EventAnnouncerProps) {
     if (toasts.length === 0) return null;
 
     return (
-        <div className="pointer-events-none fixed left-1/2 top-16 sm:top-28 z-[120] flex w-full max-w-[92vw] -translate-x-1/2 flex-col items-center gap-1.5 sm:gap-2">
+        <div className="pointer-events-none fixed left-1/2 top-28 sm:top-36 z-[120] flex w-full max-w-[92vw] -translate-x-1/2 flex-col items-center gap-1.5 sm:gap-2">
             {toasts.map((toast) => (
                 <div
                     key={toast.id}

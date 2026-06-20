@@ -34,10 +34,8 @@ interface Player {
 }
 
 interface GameRule {
-    numOfDraWSix: number;
+    numOfDrawSix: number;
     numOfDrawTen: number;
-    /** @deprecated use secondsPerRound */
-    secondPerRound: number;
     secondsPerRound: number;
     /** @deprecated use rotateHandsOnZero / swapHandsOnSeven */
     specialRulesIsEnabled?: boolean;
@@ -77,13 +75,14 @@ interface GameEvent {
 
 interface PublicGameState {
     players: Player[];
-    deck: Card[];
+    /** Number of cards left in the draw pile (the deck itself is server-only). */
+    deckCount: number;
     discardPile: Card[];
     currentPlayerIndex: number;
     playerCardCounter: Record<string, number>;
     direction: 1 | -1; // 1 for clockwise, -1 for counter-clockwise
     pendingDrawCount?: number;
-    miniumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
+    minimumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
     activeColor?: "red" | "green" | "blue" | "yellow";
     unoChallenge?: {
         playerId: string;
@@ -100,6 +99,8 @@ interface PublicGameState {
 
 interface GameState extends PublicGameState {
     hands: Record<string, Card[]>;
+    /** Full draw pile — server-only, never broadcast to clients. */
+    deck: Card[];
 }
 
 export {

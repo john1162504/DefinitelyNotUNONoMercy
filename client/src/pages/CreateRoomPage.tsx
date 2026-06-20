@@ -68,7 +68,7 @@ function CreateRoomPage() {
         socket.emit("creating_room", {
             playerName: trimmedName,
             gameRule: {
-                numOfDraWSix: numOfDrawSix,
+                numOfDrawSix: numOfDrawSix,
                 numOfDrawTen: numOfDrawTen,
                 rotateHandsOnZero,
                 swapHandsOnSeven,

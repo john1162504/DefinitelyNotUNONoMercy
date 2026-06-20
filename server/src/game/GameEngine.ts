@@ -46,7 +46,7 @@ function createDeck(gameRule: GameRule): Card[] {
             deck.push({ color, value: "+2" });
         }
 
-        // +4: 2 of each
+        // +4: 2 of each (colored draw card, not wild)
         for (let i = 0; i < 2; i++) {
             deck.push({ color, value: "+4" });
         }
@@ -60,7 +60,7 @@ function createDeck(gameRule: GameRule): Card[] {
     // Wild cards (color: "wild")
     const wildCards: [Value, number][] = [
         ["reverse+4", 8],
-        ["+6", gameRule.numOfDraWSix],
+        ["+6", gameRule.numOfDrawSix],
         ["+10", gameRule.numOfDrawTen],
         ["colorRoulette", 8],
     ];

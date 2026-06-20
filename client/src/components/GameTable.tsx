@@ -30,8 +30,9 @@ export default function GameTable({
 }: GameTableProps) {
     const mayAct = canAct ?? isYourTurn;
     const sessionId = getSessionId();
-    const discardPile = gameState.discardPile;
-    const deck = gameState.deck;
+    const discardPile = gameState.discardPile ?? [];
+    const deckCount = gameState.deckCount ?? 0;
+    const topDiscard = discardPile[discardPile.length - 1];
 
     const areaRef = useRef<HTMLDivElement>(null);
     const [area, setArea] = useState({ width: 800, height: 450 });
@@ -99,8 +100,8 @@ export default function GameTable({
                     }}
                 >
                     <CenterPile
-                        deckCount={deck.length}
-                        topDiscard={discardPile[discardPile.length - 1]}
+                        deckCount={deckCount}
+                        topDiscard={topDiscard}
                         lastPlayedCards={gameState.lastPlayedCards}
                         direction={gameState.direction}
                         activeColor={gameState.activeColor}

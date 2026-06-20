@@ -2,26 +2,26 @@ import { getDrawStackLabel } from "@/lib/cardValidation";
 
 interface DrawStackBannerProps {
     pendingDrawCount: number;
-    miniumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
+    minimumDrawValue?: "+2" | "+4" | "reverse+4" | "+6" | "+10";
     isYourTurn: boolean;
     currentPlayerName?: string;
 }
 
 export default function DrawStackBanner({
     pendingDrawCount,
-    miniumDrawValue,
+    minimumDrawValue,
     isYourTurn,
     currentPlayerName,
 }: DrawStackBannerProps) {
     if (!pendingDrawCount || pendingDrawCount <= 0) return null;
 
-    const minLabel = miniumDrawValue
-        ? getDrawStackLabel(miniumDrawValue)
+    const minLabel = minimumDrawValue
+        ? getDrawStackLabel(minimumDrawValue)
         : "+2";
 
     return (
         <div
-            className={`fixed top-14 sm:top-20 left-1/2 -translate-x-1/2 px-3 py-2 sm:px-6 sm:py-3 rounded-xl shadow-lg z-40 max-w-[90vw] sm:max-w-lg text-center border sm:border-2 ${
+            className={`fixed top-14 sm:top-20 left-1/2 -translate-x-1/2 px-3 py-2 sm:px-6 sm:py-3 rounded-xl shadow-lg z-40 max-w-[72vw] sm:max-w-md text-center border sm:border-2 ${
                 isYourTurn
                     ? "bg-orange-500 text-white border-orange-300 animate-pulse"
                     : "bg-amber-100 text-amber-900 border-amber-400"

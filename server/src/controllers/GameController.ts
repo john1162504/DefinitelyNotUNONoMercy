@@ -60,6 +60,15 @@ function emitGameEvent(io: Server, roomId: string, event: GameEvent) {
     io.to(roomId).emit("game_event", event);
 }
 
+/**
+ * True once the game has ended (broadcastGameOver deletes the stored state).
+ * Callers use this to short-circuit after a draw/play that triggered a win or
+ * bust, so we never emit further events or mutate the deleted game state.
+ */
+function isGameOver(game: GameState, roomId: string): boolean {
+    return gameStates[roomId] !== game;
+}
+
 function getRuleFlags(roomId: string) {
     const rule = roomStates[roomId]?.rule;
     const legacy = rule?.specialRulesIsEnabled ?? false;
@@ -158,32 +167,38 @@ function startGame(io: Server, roomState: RoomState, roomId: string) {
         : -1;
     const startingIndex = winnerIdx >= 0 ? winnerIdx : 0;
 
-    const publicGameState: PublicGameState = {
+    roomState.isStarted = true;
+    const [hands, remainingDeck] = dealHands(roomState.players, deck);
+
+    const game: GameState = {
         players: roomState.players,
-        deck,
+        deck: remainingDeck,
+        deckCount: remainingDeck.length,
         discardPile: [startCard],
         currentPlayerIndex: startingIndex,
         direction: 1,
-        playerCardCounter: {},
+        playerCardCounter: getPlayerCardCounts(hands),
         activeColor: undefined,
+        hands,
     };
+    gameStates[roomId] = game;
 
-    roomState.isStarted = true;
-    const [hands, remainingDeck] = dealHands(roomState.players, deck);
-    publicGameState.deck = remainingDeck;
-    publicGameState.playerCardCounter = getPlayerCardCounts(hands);
-    gameStates[roomId] = { hands, ...publicGameState };
+    const turnExpiresAt = scheduleTurnTimer(io, roomId);
+    const publicGameState = toPublicGameState(game);
 
     for (const player of roomState.players) {
         io.to(player.socketId).emit("game_started", {
             hand: hands[player.id],
-            gameState: {
-                ...publicGameState,
-                turnExpiresAt: scheduleTurnTimer(io, roomId),
-            },
+            gameState: { ...publicGameState, turnExpiresAt },
             roomState: roomState,
         });
     }
+}
+
+/** Strip server-only fields (hands, raw deck) and expose only the deck count. */
+function toPublicGameState(game: GameState): PublicGameState {
+    const { hands: _hands, deck, ...rest } = game;
+    return { ...rest, deckCount: deck.length };
 }
 
 function scheduleTurnTimer(io: Server, roomId: string): number | undefined {
@@ -191,8 +206,7 @@ function scheduleTurnTimer(io: Server, roomId: string): number | undefined {
     const game = gameStates[roomId];
     if (!roomState || !game) return undefined;
 
-    const seconds =
-        roomState.rule.secondsPerRound ?? roomState.rule.secondPerRound ?? 0;
+    const seconds = roomState.rule.secondsPerRound ?? 0;
     if (seconds <= 0) return undefined;
 
     startTurnTimer(roomId, seconds, (id) => handleTurnTimeout(io, id));
@@ -214,11 +228,13 @@ function handleTurnTimeout(io: Server, roomId: string) {
             currentPlayer,
             game.pendingDrawCount,
         );
+        if (isGameOver(game, roomId)) return;
         game.hands[currentPlayer.id].push(...drawnCards);
         game.pendingDrawCount = 0;
-        game.miniumDrawValue = undefined;
+        game.minimumDrawValue = undefined;
     } else {
         const drawnCards = drawCard(io, game, roomId, currentPlayer, 1);
+        if (isGameOver(game, roomId)) return;
         game.hands[currentPlayer.id].push(...drawnCards);
     }
 
@@ -413,6 +429,7 @@ function handleGameSockets(io: Server, socket: Socket) {
                         currentPlayer,
                         2,
                     );
+                    if (isGameOver(game, roomId)) return;
                     game.hands[currentPlayer.id].push(...newCard);
                 }
             }
@@ -444,7 +461,7 @@ function handleGameSockets(io: Server, socket: Socket) {
                             ];
                     }
                 }
-                game.miniumDrawValue = cards[0].value as
+                game.minimumDrawValue = cards[0].value as
                     | "+2"
                     | "+4"
                     | "reverse+4"
@@ -474,7 +491,8 @@ function handleGameSockets(io: Server, socket: Socket) {
                 cards[0].value === "reverse" ||
                 cards[0].value === "reverse+4"
             ) {
-                if (cards.length % 2 === 1) {
+                const directionFlips = cards.length % 2 === 1;
+                if (directionFlips) {
                     game.direction = (game.direction * -1) as 1 | -1;
                 }
                 if (
@@ -483,7 +501,9 @@ function handleGameSockets(io: Server, socket: Socket) {
                 ) {
                     skipTurnRotation = true;
                 }
-                if (cards[0].value === "reverse" && cards.length % 2 === 1) {
+                // Announce the flip for both reverse and reverse+4 so the
+                // direction change is never silent.
+                if (directionFlips) {
                     emitGameEvent(io, roomId, {
                         type: "reverse",
                         actorName: currentPlayer.name,
@@ -547,8 +567,13 @@ function handleGameSockets(io: Server, socket: Socket) {
                 const roulettePlayer =
                     game.players[game.currentPlayerIndex];
 
+                // Hard cap: a victim busts at 25 cards, so this can never
+                // legitimately run more than ~25 iterations, but the cap
+                // guards against an empty/cycling deck looping forever.
+                const ROULETTE_DRAW_CAP = 30;
                 const rouletteDrawn: Card[] = [];
-                while (true) {
+
+                for (let i = 0; i < ROULETTE_DRAW_CAP; i++) {
                     const newCard = drawCard(
                         io,
                         game,
@@ -556,6 +581,14 @@ function handleGameSockets(io: Server, socket: Socket) {
                         roulettePlayer,
                         1,
                     )[0];
+
+                    // drawCard triggers a bust game-over the moment the victim
+                    // crosses 24 cards; stop immediately so we don't keep
+                    // dealing cards or mutate the deleted game state.
+                    if (isGameOver(game, roomId)) {
+                        return;
+                    }
+
                     if (!newCard) break;
 
                     game.hands[roulettePlayer.id].push(newCard);
@@ -613,6 +646,7 @@ function handleGameSockets(io: Server, socket: Socket) {
 
         const callerId = socket.data.sessionId;
         resolveUnoCall(io, game, roomId, callerId);
+        if (isGameOver(game, roomId)) return;
         finishTurn(io, game, roomId);
     });
 
@@ -718,9 +752,10 @@ function handleGameSockets(io: Server, socket: Socket) {
                     currentPlayer,
                     game.pendingDrawCount,
                 );
+                if (isGameOver(game, roomId)) return;
                 game.hands[playerId].push(...drawnCards);
                 game.pendingDrawCount = 0;
-                game.miniumDrawValue = undefined;
+                game.minimumDrawValue = undefined;
                 rotateBy(game, 1);
             } else if (count && count > 0) {
                 const drawnCards = drawCard(
@@ -730,6 +765,7 @@ function handleGameSockets(io: Server, socket: Socket) {
                     currentPlayer,
                     count,
                 );
+                if (isGameOver(game, roomId)) return;
                 game.hands[playerId].push(...drawnCards);
                 rotateBy(game, 1);
             } else {
@@ -751,42 +787,42 @@ function cardValidation(
     const topCard = game.discardPile[game.discardPile.length - 1];
     const colorToMatch = game.activeColor || topCard.color;
 
-    const isValidFirstCard =
-        cards[0].color === colorToMatch ||
-        cards[0].value === topCard.value ||
-        cards[0].color === "wild";
-
-    if (!isValidFirstCard) {
-        return false;
-    }
-
-    if (
-        game.pendingDrawCount &&
-        !cards.every((c) => DRAW_CARD_VALUES.includes(c.value))
-    ) {
-        return false;
-    }
-
+    // Multiple cards must always share the same value.
     if (cards.length > 1) {
         const isSameValue = cards.every((c) => c.value === cards[0].value);
         if (!isSameValue) return false;
     }
 
+    // While a draw stack is active, only the stack strength matters: ANY
+    // equal-or-higher draw card may be stacked regardless of color/value
+    // match (No Mercy rules). This check runs ahead of the first-card
+    // color/value match below, which we deliberately skip during a stack.
     if (game.pendingDrawCount) {
-        const isHigherThanTopCard = cards.every(
+        const allDrawCards = cards.every((c) =>
+            DRAW_CARD_VALUES.includes(c.value),
+        );
+        if (!allDrawCards) return false;
+
+        const minStrength =
+            DRAW_CARD_STRENGTH[
+                game.minimumDrawValue as keyof typeof DRAW_CARD_STRENGTH
+            ];
+        const isEqualOrHigher = cards.every(
             (c) =>
                 DRAW_CARD_STRENGTH[
                     c.value as keyof typeof DRAW_CARD_STRENGTH
-                ] >=
-                DRAW_CARD_STRENGTH[
-                    game.miniumDrawValue as keyof typeof DRAW_CARD_STRENGTH
-                ],
+                ] >= minStrength,
         );
-        if (!isHigherThanTopCard) {
-            return false;
-        }
+        return isEqualOrHigher;
     }
-    return true;
+
+    // Normal play: match the active color, the top value, or play a wild.
+    const isValidFirstCard =
+        cards[0].color === colorToMatch ||
+        cards[0].value === topCard.value ||
+        cards[0].color === "wild";
+
+    return isValidFirstCard;
 }
 
 function rotateBy(game: PublicGameState, steps: number) {
@@ -831,11 +867,11 @@ function broadcastGameState(io: Server, game: GameState, roomId: string) {
             ? undefined
             : scheduleTurnTimer(io, roomId);
 
-    const { hands, ...publicGameState } = game;
+    const publicGameState = toPublicGameState(game);
 
     for (const player of game.players) {
         io.to(player.socketId).emit("game_update", {
-            hand: hands[player.id],
+            hand: game.hands[player.id],
             gameState: { ...publicGameState, turnExpiresAt },
         });
     }
@@ -926,4 +962,5 @@ export {
     startGame,
     gameStates,
     handlePlayerLeaveMidGame,
+    toPublicGameState,
 };

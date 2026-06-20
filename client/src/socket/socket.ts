@@ -28,6 +28,10 @@ export function getSocket(): Socket {
     return socket;
 }
 
+export function isSocketInitialised(): boolean {
+    return socket !== null;
+}
+
 export function getSessionId(): string {
     return sessionId!;
 }

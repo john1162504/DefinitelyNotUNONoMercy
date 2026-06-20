@@ -47,7 +47,7 @@ const SECTIONS: RuleSection[] = [
         title: "Matching cards",
         cards: [
             { color: "red", value: "7" },
-            { color: "wild", value: "+4" },
+            { color: "red", value: "+4" },
         ],
         body: (
             <ul className="list-disc space-y-1 pl-5">
@@ -68,7 +68,7 @@ const SECTIONS: RuleSection[] = [
     },
     {
         title: "Wild cards",
-        cards: [{ color: "wild", value: "+4" }],
+        cards: [{ color: "wild", value: "colorRoulette" }],
         body: (
             <p>
                 Wild cards require choosing red, green, blue, or yellow when
@@ -81,6 +81,7 @@ const SECTIONS: RuleSection[] = [
         title: "Draw stack (+2 and higher)",
         cards: [
             { color: "red", value: "+2" },
+            { color: "red", value: "+4" },
             { color: "wild", value: "+6" },
             { color: "wild", value: "+10" },
         ],

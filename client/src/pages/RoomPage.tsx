@@ -265,28 +265,58 @@ function RoomPage() {
         );
     }
 
+    if (memoisedRoomState!.isStarted && !memoisedGameState && !gameOver) {
+        return (
+            <main className="min-h-screen flex items-center justify-center">
+                <p className="text-lg font-semibold text-white drop-shadow">
+                    Loading game…
+                </p>
+            </main>
+        );
+    }
+
     const inGame =
         memoisedRoomState!.isStarted &&
         memoisedGameState &&
         !gameOver;
 
-    return (
-        <main className="min-h-screen w-full overflow-y-auto">
-            {errorMsg && (
-                <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-3 rounded shadow-lg z-50 max-w-sm">
-                    <p className="mb-2">{errorMsg}</p>
-                    <button
-                        className="text-sm underline hover:no-underline"
-                        onClick={() => setErrorMsg(null)}
-                    >
-                        Dismiss
-                    </button>
-                </div>
-            )}
+    const errorToast = errorMsg ? (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-3 rounded shadow-lg z-50 max-w-sm">
+            <p className="mb-2">{errorMsg}</p>
+            <button
+                className="text-sm underline hover:no-underline"
+                onClick={() => setErrorMsg(null)}
+            >
+                Dismiss
+            </button>
+        </div>
+    ) : null;
 
-            {inGame && <OrientationGate />}
+    const gameOverModal = gameOver ? (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center gap-4 max-w-sm">
+                <h2 className="text-2xl font-bold text-center">
+                    {gameOver.winner
+                        ? `🎉 ${gameOver.winner} wins!`
+                        : gameOver.loser
+                          ? `💥 ${gameOver.loser} is busted!`
+                          : "Game Over"}
+                </h2>
+                <button
+                    className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    onClick={handleBackToLobby}
+                >
+                    Back to Lobby
+                </button>
+            </div>
+        </div>
+    ) : null;
 
-            {inGame ? (
+    if (inGame) {
+        return (
+            <>
+                {errorToast}
+                <OrientationGate />
                 <GameView
                     hand={memoisedHand}
                     gameState={memoisedGameState!}
@@ -298,37 +328,26 @@ function RoomPage() {
                     onSwapHands={swapHands}
                     onLeave={handleDisconnect}
                 />
-            ) : (
-                <div className="flex min-h-screen items-center justify-center px-4 py-6">
-                    <LobbyView
-                        roomState={memoisedRoomState!}
-                        roomId={roomId || ""}
-                        playerName={playerName || ""}
-                        onStartGame={startGame}
-                        handleDisconect={handleDisconnect}
-                    />
-                </div>
-            )}
+                {gameOverModal}
+            </>
+        );
+    }
 
-            {gameOver && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center gap-4 max-w-sm">
-                        <h2 className="text-2xl font-bold text-center">
-                            {gameOver.winner
-                                ? `🎉 ${gameOver.winner} wins!`
-                                : gameOver.loser
-                                  ? `💥 ${gameOver.loser} is busted!`
-                                  : "Game Over"}
-                        </h2>
-                        <button
-                            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                            onClick={handleBackToLobby}
-                        >
-                            Back to Lobby
-                        </button>
-                    </div>
-                </div>
-            )}
+    return (
+        <main className="min-h-screen w-full overflow-y-auto">
+            {errorToast}
+
+            <div className="flex min-h-screen items-center justify-center px-4 py-6">
+                <LobbyView
+                    roomState={memoisedRoomState!}
+                    roomId={roomId || ""}
+                    playerName={playerName || ""}
+                    onStartGame={startGame}
+                    handleDisconect={handleDisconnect}
+                />
+            </div>
+
+            {gameOverModal}
         </main>
     );
 }

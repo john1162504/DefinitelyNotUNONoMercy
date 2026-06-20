@@ -49,9 +49,9 @@ export const CARD_INFO: Record<Value, CardInfo> = {
             "The next player draws 2 — unless they stack another draw card of equal or higher strength.",
     },
     "+4": {
-        name: "Wild Draw 4",
+        name: "Draw 4",
         description:
-            "Choose a color; the next player draws 4 unless they stack a draw card of equal or higher strength.",
+            "The next player draws 4 unless they stack a draw card of equal or higher strength.",
     },
     "reverse+4": {
         name: "Reverse Draw 4",

@@ -13,7 +13,7 @@ const cardImgPath = (card: UNO) =>
 
 interface CenterPileProps {
     deckCount: number;
-    topDiscard: UNO;
+    topDiscard?: UNO;
     lastPlayedCards?: UNO[];
     direction: 1 | -1;
     activeColor?: "red" | "green" | "blue" | "yellow";
@@ -36,6 +36,14 @@ export default function CenterPile({
 }: CenterPileProps) {
     const canDraw = isYourTurn;
     const multiPlay = (lastPlayedCards?.length ?? 0) > 1;
+
+    if (!topDiscard) {
+        return (
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-sm text-white/80">
+                Loading table…
+            </div>
+        );
+    }
 
     // Scale the pile with the table so it stays proportional on small screens.
     const cardW = Math.max(32, Math.min(72, tableWidth * 0.085));

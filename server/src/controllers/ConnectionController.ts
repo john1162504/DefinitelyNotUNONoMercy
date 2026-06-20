@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { roomStates } from "./LobbyController";
-import { gameStates } from "./GameController";
+import { gameStates, toPublicGameState } from "./GameController";
 
 function handleConnection(io: Server, socket: Socket) {
     const playerId = socket.data.sessionId;
@@ -78,10 +78,8 @@ function handleConnection(io: Server, socket: Socket) {
                 gamePlayer.socketId = socket.id;
             }
 
-            const { hands, ...publicGameState } = gameState;
-
             socket.emit("current_game_state", {
-                gameState: publicGameState,
+                gameState: toPublicGameState(gameState),
                 hand: gameState.hands[playerId],
                 roomState: roomState,
             });

@@ -8,9 +8,7 @@ function generateRoomId(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-function normalizeGameRule(
-    gameRule: GameRule & { secondsPerRound?: number },
-): GameRule {
+function normalizeGameRule(gameRule: GameRule): GameRule {
     const legacySpecial = gameRule.specialRulesIsEnabled ?? false;
     const rotateHandsOnZero =
         gameRule.rotateHandsOnZero ?? legacySpecial ?? false;
@@ -19,10 +17,7 @@ function normalizeGameRule(
 
     return {
         ...gameRule,
-        secondsPerRound:
-            gameRule.secondsPerRound ?? gameRule.secondPerRound ?? 30,
-        secondPerRound:
-            gameRule.secondsPerRound ?? gameRule.secondPerRound ?? 30,
+        secondsPerRound: gameRule.secondsPerRound ?? 30,
         allowWinOnFunctionCard: gameRule.allowWinOnFunctionCard ?? true,
         rotateHandsOnZero,
         swapHandsOnSeven,
@@ -38,7 +33,7 @@ function handleRoomSockets(io: Server, socket: Socket) {
             gameRule,
         }: {
             playerName: string;
-            gameRule: GameRule & { secondsPerRound?: number };
+            gameRule: GameRule;
         }) => {
             const roomId = generateRoomId();
 
