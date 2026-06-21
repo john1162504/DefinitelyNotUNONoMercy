@@ -578,14 +578,8 @@ function handleGameSockets(io: Server, socket: Socket) {
                         roomId,
                         roulettePlayer,
                         1,
+                        { deferBust: true },
                     )[0];
-
-                    // drawCard triggers a bust game-over the moment the victim
-                    // crosses 24 cards; stop immediately so we don't keep
-                    // dealing cards or mutate the deleted game state.
-                    if (isGameOver(game, roomId)) {
-                        return;
-                    }
 
                     if (!newCard) break;
 
@@ -604,6 +598,16 @@ function handleGameSockets(io: Server, socket: Socket) {
                     color: chosenColor,
                     drawnCards: rouletteDrawn,
                 });
+
+                if (game.hands[roulettePlayer.id].length > 24) {
+                    broadcastGameOver({
+                        io,
+                        game,
+                        roomId,
+                        loser: roulettePlayer.name,
+                    });
+                    return;
+                }
             }
 
             if (cards.some((c) => c.color === "wild")) {
@@ -830,6 +834,7 @@ function drawCard(
     roomId: string,
     player: Player,
     numCards: number,
+    options?: { deferBust?: boolean },
 ): Card[] {
     const drawnCards: Card[] = [];
     for (let i = 0; i < numCards; i++) {
@@ -844,7 +849,9 @@ function drawCard(
     }
 
     if (game.hands[player.id].length + drawnCards.length > 24) {
-        broadcastGameOver({ io, game, roomId, loser: player.name });
+        if (!options?.deferBust) {
+            broadcastGameOver({ io, game, roomId, loser: player.name });
+        }
     }
     return drawnCards;
 }

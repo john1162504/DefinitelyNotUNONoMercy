@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Card as UNO } from "@/types";
 import type { TimedGameEvent } from "@/pages/RoomPage";
 
@@ -8,14 +8,28 @@ const cardImgPath = (card: UNO) =>
     }_${card.color}.png`;
 
 const REVEAL_MS = 500;
+const FINISH_HOLD_MS = 2000;
 
 interface RouletteOverlayProps {
     event: TimedGameEvent | null;
+    onActiveChange?: (active: boolean) => void;
+    onComplete?: () => void;
 }
 
-export default function RouletteOverlay({ event }: RouletteOverlayProps) {
+export default function RouletteOverlay({
+    event,
+    onActiveChange,
+    onComplete,
+}: RouletteOverlayProps) {
     const [active, setActive] = useState<TimedGameEvent | null>(null);
     const [revealed, setRevealed] = useState(0);
+    const onActiveChangeRef = useRef(onActiveChange);
+    const onCompleteRef = useRef(onComplete);
+
+    useEffect(() => {
+        onActiveChangeRef.current = onActiveChange;
+        onCompleteRef.current = onComplete;
+    }, [onActiveChange, onComplete]);
 
     const eventId =
         event && event.type === "colorRoulette" ? event.eventId : null;
@@ -24,10 +38,12 @@ export default function RouletteOverlay({ event }: RouletteOverlayProps) {
         if (!event || event.type !== "colorRoulette") return;
         setActive(event);
         setRevealed(0);
+        onActiveChangeRef.current?.(true);
     }, [eventId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!active) return;
+
         const cards = active.drawnCards ?? [];
 
         if (revealed < cards.length) {
@@ -35,7 +51,12 @@ export default function RouletteOverlay({ event }: RouletteOverlayProps) {
             return () => clearTimeout(t);
         }
 
-        const t = setTimeout(() => setActive(null), 2000);
+        const t = setTimeout(() => {
+            setActive(null);
+            onActiveChangeRef.current?.(false);
+            onCompleteRef.current?.();
+        }, FINISH_HOLD_MS);
+
         return () => clearTimeout(t);
     }, [active, revealed]);
 
@@ -45,10 +66,17 @@ export default function RouletteOverlay({ event }: RouletteOverlayProps) {
     const color = active.color;
     const finished = revealed >= cards.length;
 
+    const dismiss = () => {
+        if (!finished) return;
+        setActive(null);
+        onActiveChangeRef.current?.(false);
+        onCompleteRef.current?.();
+    };
+
     return (
         <div
             className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-6 bg-black/75 px-4"
-            onClick={() => setActive(null)}
+            onClick={dismiss}
         >
             <div className="text-center">
                 <h2 className="text-3xl font-extrabold text-white drop-shadow">

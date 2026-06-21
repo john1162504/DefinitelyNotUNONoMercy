@@ -25,6 +25,21 @@ function RoomPage() {
     const [hand, setHand] = useState<Card[]>([]);
     const [latestEvent, setLatestEvent] = useState<TimedGameEvent | null>(null);
     const eventCounterRef = useRef(0);
+    const latestEventRef = useRef<TimedGameEvent | null>(null);
+    const rouletteActiveRef = useRef(false);
+    const pendingGameOverRef = useRef<{
+        roomId: string;
+        winner?: string;
+        loser?: string;
+    } | null>(null);
+    const [roulettePlaybackPending, setRoulettePlaybackPending] = useState(false);
+
+    latestEventRef.current = latestEvent;
+
+    const isRouletteBlockingExit = () =>
+        roulettePlaybackPending ||
+        rouletteActiveRef.current ||
+        pendingGameOverRef.current !== null;
 
     const memoisedHand = useMemo(() => hand, [hand]);
     const memoisedGameState = useMemo(() => gameState, [gameState]);
@@ -78,7 +93,30 @@ function RoomPage() {
         setGameOver(null);
         setGameState(null);
         setHand([]);
+        pendingGameOverRef.current = null;
+        setRoulettePlaybackPending(false);
     }
+
+    const applyGameOver = useCallback(
+        (payload: { roomId: string; winner?: string; loser?: string }) => {
+            setGameOver(payload);
+            setGameState(null);
+            setHand([]);
+        },
+        [],
+    );
+
+    const handleRouletteActiveChange = useCallback((active: boolean) => {
+        rouletteActiveRef.current = active;
+    }, []);
+
+    const handleRouletteComplete = useCallback(() => {
+        setRoulettePlaybackPending(false);
+        if (pendingGameOverRef.current) {
+            applyGameOver(pendingGameOverRef.current);
+            pendingGameOverRef.current = null;
+        }
+    }, [applyGameOver]);
 
     useEffect(() => {
         function handleError(error: { message: string }) {
@@ -112,7 +150,7 @@ function RoomPage() {
 
         const handleRoomUpdate = (updated: RoomState) => {
             setRoomState(updated);
-            if (!updated.isStarted) {
+            if (!updated.isStarted && !isRouletteBlockingExit()) {
                 setGameState(null);
                 setHand([]);
             }
@@ -153,15 +191,25 @@ function RoomPage() {
             winner?: string;
             loser?: string;
         }) {
-            setGameOver(payload);
-            setGameState(null);
-            setHand([]);
+            const ev = latestEventRef.current;
+            const shouldDeferForRoulette =
+                payload.loser &&
+                (rouletteActiveRef.current ||
+                    (ev?.type === "colorRoulette" &&
+                        (ev.drawnCards?.length ?? 0) > 0));
+
+            if (shouldDeferForRoulette) {
+                pendingGameOverRef.current = payload;
+                return;
+            }
+
+            applyGameOver(payload);
         }
         socket.on("game_over", handleGameOver);
         return () => {
             socket.off("game_over", handleGameOver);
         };
-    }, [socket]);
+    }, [socket, applyGameOver]);
 
     useEffect(() => {
         function handleGameUpdate({
@@ -222,7 +270,15 @@ function RoomPage() {
     useEffect(() => {
         function handleGameEvent(event: GameEvent) {
             eventCounterRef.current += 1;
-            setLatestEvent({ ...event, eventId: eventCounterRef.current });
+            const timed: TimedGameEvent = {
+                ...event,
+                eventId: eventCounterRef.current,
+            };
+            latestEventRef.current = timed;
+            setLatestEvent(timed);
+            if (event.type === "colorRoulette") {
+                setRoulettePlaybackPending(true);
+            }
         }
         socket.on("game_event", handleGameEvent);
         return () => {
@@ -276,9 +332,9 @@ function RoomPage() {
     }
 
     const inGame =
-        memoisedRoomState!.isStarted &&
         memoisedGameState &&
-        !gameOver;
+        !gameOver &&
+        (memoisedRoomState!.isStarted || roulettePlaybackPending);
 
     const errorToast = errorMsg ? (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-3 rounded shadow-lg z-50 max-w-sm">
@@ -327,6 +383,8 @@ function RoomPage() {
                     onTakeDraw={takeDraw}
                     onSwapHands={swapHands}
                     onLeave={handleDisconnect}
+                    onRouletteActiveChange={handleRouletteActiveChange}
+                    onRouletteComplete={handleRouletteComplete}
                 />
                 {gameOverModal}
             </>

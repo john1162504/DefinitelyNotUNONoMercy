@@ -64,7 +64,8 @@ export function canPlayCards(
     }
 
     // Draw-stack responses: equal-or-higher draw cards only. A wild reverse+4
-    // stack also requires matching activeColor for equal-strength +4 plays.
+    // stack requires colored +4 to match activeColor; wild reverse+4 may pick
+    // a new color; higher draw cards ignore color.
     if (gameState.pendingDrawCount) {
         if (!cards.every((c) => DRAW_CARD_VALUES.includes(c.value))) {
             return {
@@ -95,13 +96,13 @@ export function canPlayCards(
                 if (allEqualStrength) {
                     const colorOk = cards.every((c) =>
                         c.color === "wild"
-                            ? chosenColor === gameState.activeColor
+                            ? chosenColor !== undefined
                             : c.color === gameState.activeColor,
                     );
                     if (!colorOk) {
                         return {
                             valid: false,
-                            reason: `Must play +4 in ${gameState.activeColor} or a higher draw card`,
+                            reason: `Must play +4 in ${gameState.activeColor}, stack wild reverse+4 with a new color, or play a higher draw card`,
                         };
                     }
                 }

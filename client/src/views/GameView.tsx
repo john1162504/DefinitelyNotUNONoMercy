@@ -23,6 +23,8 @@ interface GameViewProps {
     onTakeDraw?: (count: number) => void;
     onSwapHands?: (targetPlayerId: string) => void;
     onLeave?: () => void;
+    onRouletteActiveChange?: (active: boolean) => void;
+    onRouletteComplete?: () => void;
 }
 
 export default function GameView({
@@ -35,6 +37,8 @@ export default function GameView({
     onTakeDraw,
     onSwapHands,
     onLeave,
+    onRouletteActiveChange,
+    onRouletteComplete,
 }: GameViewProps) {
     const socket = getSocket();
     const sessionId = getSessionId();
@@ -82,7 +86,11 @@ export default function GameView({
 
     return (
         <>
-            <RouletteOverlay event={latestEvent ?? null} />
+            <RouletteOverlay
+                event={latestEvent ?? null}
+                onActiveChange={onRouletteActiveChange}
+                onComplete={onRouletteComplete}
+            />
 
             <div
                 className="pointer-events-none fixed left-1.5 top-1.5 z-[120] flex max-h-[38vh] w-[min(240px,44vw)] flex-col gap-1 overflow-y-auto sm:left-2 sm:top-2 sm:w-[min(280px,36vw)] sm:gap-1.5 md:w-72"

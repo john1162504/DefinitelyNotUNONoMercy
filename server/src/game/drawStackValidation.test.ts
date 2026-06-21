@@ -48,20 +48,26 @@ test("reverse+4 stack rejects lower draw cards", () => {
     );
 });
 
-test("reverse+4 stack allows wild equal card when color will match", () => {
-    assert.equal(
-        validateDrawStackResponse([wildReverse4], "reverse+4", "blue"),
-        true,
-    );
-});
-
-test("reverse+4 stack rejects wild equal card with wrong chosen color", () => {
+test("reverse+4 stack allows wild equal card with a newly chosen color", () => {
     assert.equal(
         validateDrawStackResponse(
             [wildReverse4],
             "reverse+4",
             "blue",
             "red",
+            { requireChosenColorForWild: true },
+        ),
+        true,
+    );
+});
+
+test("reverse+4 stack rejects wild equal card without chosen color", () => {
+    assert.equal(
+        validateDrawStackResponse(
+            [wildReverse4],
+            "reverse+4",
+            "blue",
+            undefined,
             { requireChosenColorForWild: true },
         ),
         false,

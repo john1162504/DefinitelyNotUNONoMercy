@@ -32,7 +32,8 @@ export function validateColorRoulettePlay(
 
 /**
  * Validates draw-stack responses. Equal-strength stacks on a wild reverse+4
- * (which always sets activeColor) must match that color; higher draw cards
+ * (which always sets activeColor) require colored +4 to match that color; a
+ * wild reverse+4 may stack with any newly chosen color; higher draw cards
  * may be played regardless of color.
  */
 export function validateDrawStackResponse(
@@ -65,9 +66,10 @@ export function validateDrawStackResponse(
         );
         if (allEqualStrength) {
             return cards.every((c) => {
+                // Wild reverse+4 may stack with a newly chosen color.
                 if (c.color === "wild") {
                     if (options?.requireChosenColorForWild) {
-                        return chosenColor === activeColor;
+                        return chosenColor !== undefined;
                     }
                     return true;
                 }
