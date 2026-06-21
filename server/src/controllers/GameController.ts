@@ -15,20 +15,18 @@ import {
     shuffle,
 } from "../game/GameEngine";
 import {
+    DRAW_CARD_STRENGTH,
+    DRAW_CARD_VALUES,
+    validateColorRoulettePlay,
+    validateDrawStackResponse,
+} from "../game/drawStackValidation";
+import {
     clearTurnTimer,
     getTurnExpiresAt,
     startTurnTimer,
 } from "../game/TurnTimer";
 
 const gameStates: Record<string, GameState> = {};
-const DRAW_CARD_VALUES = ["+2", "+4", "reverse+4", "+6", "+10"];
-const DRAW_CARD_STRENGTH = {
-    "+2": 2,
-    "+4": 4,
-    "reverse+4": 4,
-    "+6": 6,
-    "+10": 10,
-};
 
 const UNSTARTABLE_VALUES = new Set([
     "+2",
@@ -793,27 +791,20 @@ function cardValidation(
         if (!isSameValue) return false;
     }
 
-    // While a draw stack is active, only the stack strength matters: ANY
-    // equal-or-higher draw card may be stacked regardless of color/value
-    // match (No Mercy rules). This check runs ahead of the first-card
-    // color/value match below, which we deliberately skip during a stack.
-    if (game.pendingDrawCount) {
-        const allDrawCards = cards.every((c) =>
-            DRAW_CARD_VALUES.includes(c.value),
-        );
-        if (!allDrawCards) return false;
+    if (!validateColorRoulettePlay(cards, game.pendingDrawCount)) {
+        return false;
+    }
 
-        const minStrength =
-            DRAW_CARD_STRENGTH[
-                game.minimumDrawValue as keyof typeof DRAW_CARD_STRENGTH
-            ];
-        const isEqualOrHigher = cards.every(
-            (c) =>
-                DRAW_CARD_STRENGTH[
-                    c.value as keyof typeof DRAW_CARD_STRENGTH
-                ] >= minStrength,
+    // Draw-stack responses: equal-or-higher draw cards only. A wild reverse+4
+    // stack also requires matching activeColor for equal-strength +4 plays.
+    if (game.pendingDrawCount) {
+        return validateDrawStackResponse(
+            cards,
+            game.minimumDrawValue,
+            game.activeColor,
+            chosenColor,
+            { requireChosenColorForWild: true },
         );
-        return isEqualOrHigher;
     }
 
     // Normal play: match the active color, the top value, or play a wild.

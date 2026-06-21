@@ -6,6 +6,8 @@ import {
     type PlayableColor,
 } from "@/lib/cardValidation";
 import { getCardInfo } from "@/lib/cardInfo";
+import { Button } from "@/components/ui/button";
+import { Play, RotateCcw } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 const CARD_WIDTH_RATIO = 1 / 13.5;
@@ -110,6 +112,12 @@ const UserHand: React.FC<UserHandProps> = ({
             ? (totalWidth - cardWidth) / (sortedHand.length - 1)
             : 0;
 
+    const selectRing = Math.max(2, Math.round(cardWidth * 0.08));
+    const playableRing = Math.max(1, Math.round(cardWidth * 0.05));
+    const cardShadowBlur = Math.max(4, Math.round(cardWidth * 0.12));
+    const cardShadowY = Math.max(2, Math.round(cardWidth * 0.06));
+    const selectLift = Math.max(4, Math.round(cardWidth * 0.12));
+
     const handlePlay = () => {
         if (!isYourTurn || selectedCards.length === 0) return;
 
@@ -143,67 +151,43 @@ const UserHand: React.FC<UserHandProps> = ({
         setValidationHint(null);
     };
 
+    const clearSelection = () => {
+        setSelectedIndices([]);
+        setSelectedWildColor(null);
+        setValidationHint(null);
+    };
+
+    const actionHint =
+        validationHint ??
+        (hasWild && hasSelection && !selectedWildColor
+            ? "Pick a wild color"
+            : null);
+
     return (
-        <div className="relative flex flex-col items-center justify-center pointer-events-none w-full py-2">
+        <div className="pointer-events-none relative flex w-full flex-col items-center justify-center py-1">
             {hasWild && hasSelection && (
-                <div className="mb-3 pointer-events-auto flex flex-col items-center gap-2 p-3 bg-white rounded-xl shadow-md border-2 border-purple-300">
-                    <span className="text-sm font-semibold text-gray-800">
-                        Wild card — choose a color to play:
+                <div className="pointer-events-auto mb-1.5 flex items-center gap-1.5 rounded-lg border border-purple-300/80 bg-black/70 px-2 py-1 shadow-md backdrop-blur-sm sm:gap-2 sm:rounded-xl sm:px-2.5 sm:py-1.5">
+                    <span className="text-[10px] font-semibold text-white sm:text-xs">
+                        Wild:
                     </span>
-                    <div className="flex gap-3">
+                    <div className="flex gap-1 sm:gap-1.5">
                         {PLAYABLE_COLORS.map((color) => (
                             <button
                                 key={color}
                                 type="button"
                                 title={color}
                                 onClick={() => setSelectedWildColor(color)}
-                                className={`w-11 h-11 rounded-full border-3 transition-transform ${
+                                className={`h-6 w-6 rounded-full border-2 transition-transform sm:h-7 sm:w-7 ${
                                     selectedWildColor === color
-                                        ? "border-black scale-110 ring-2 ring-offset-2 ring-black"
-                                        : "border-gray-400 hover:scale-105"
+                                        ? "scale-110 border-white ring-1 ring-white ring-offset-1 ring-offset-black/70"
+                                        : "border-white/40 hover:scale-105"
                                 }`}
                                 style={{ backgroundColor: color }}
                             />
                         ))}
                     </div>
-                    {!selectedWildColor && (
-                        <span className="text-xs text-amber-700">
-                            Pick a color, then press Play
-                        </span>
-                    )}
                 </div>
             )}
-
-            <div className="mb-2 pointer-events-auto flex gap-2 items-center flex-wrap justify-center">
-                <button
-                    className="rounded px-2 py-1 border bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 disabled:cursor-not-allowed"
-                    onClick={() => {
-                        setSelectedIndices([]);
-                        setSelectedWildColor(null);
-                        setValidationHint(null);
-                    }}
-                    disabled={!isYourTurn}
-                >
-                    Reset
-                </button>
-                <button
-                    className="rounded px-2 py-1 border bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                    onClick={handlePlay}
-                    disabled={!canPlay}
-                >
-                    Play
-                </button>
-                {validationHint && (
-                    <span className="text-xs text-red-600 max-w-[14rem]">
-                        {validationHint}
-                    </span>
-                )}
-                {hasWild && hasSelection && !selectedWildColor && (
-                    <span className="text-xs text-amber-700">
-                        Select a color above to enable Play
-                    </span>
-                )}
-            </div>
 
             <div
                 style={{
@@ -269,10 +253,10 @@ const UserHand: React.FC<UserHandProps> = ({
                                     transition:
                                         "box-shadow 0.2s, transform 0.1s, opacity 0.2s, filter 0.2s",
                                     boxShadow: isSelected
-                                        ? "0 0 0 3px gold, 0 4px 12px rgba(0,0,0,0.25)"
+                                        ? `0 0 0 ${selectRing}px gold, 0 ${cardShadowY}px ${cardShadowBlur}px rgba(0,0,0,0.25)`
                                         : highlightWhenIdle
-                                          ? "0 0 0 2px rgba(34,197,94,0.6), 0 2px 8px rgba(0,0,0,0.15)"
-                                          : "0 2px 8px rgba(0,0,0,0.15)",
+                                          ? `0 0 0 ${playableRing}px rgba(34,197,94,0.6), 0 ${cardShadowY}px ${cardShadowBlur * 0.67}px rgba(0,0,0,0.15)`
+                                          : `0 ${cardShadowY}px ${cardShadowBlur}px rgba(0,0,0,0.15)`,
                                     border: "none",
                                     background: "#fff",
                                     opacity: dimmed
@@ -282,7 +266,7 @@ const UserHand: React.FC<UserHandProps> = ({
                                           : 0.7,
                                     filter: dimmed ? "grayscale(0.6)" : "none",
                                     transform: isSelected
-                                        ? "translateY(-8px)"
+                                        ? `translateY(-${selectLift}px)`
                                         : undefined,
                                 }}
                                 onClick={() => toggleSelect(i)}
@@ -309,7 +293,7 @@ const UserHand: React.FC<UserHandProps> = ({
                                 }}
                                 draggable={false}
                             />
-                            <div className="pointer-events-none absolute bottom-full left-1/2 z-[600] mb-2 w-44 -translate-x-1/2 rounded-lg bg-gray-900/95 px-3 py-2 text-left opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-[600] mb-2 hidden w-44 -translate-x-1/2 rounded-lg bg-gray-900/95 px-3 py-2 text-left shadow-xl [@media(hover:hover)_and_(pointer:fine)]:block [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:transition-opacity [@media(hover:hover)_and_(pointer:fine)]:duration-150 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100">
                                 <div className="text-xs font-bold text-white">
                                     {info.name}
                                 </div>
@@ -321,6 +305,58 @@ const UserHand: React.FC<UserHandProps> = ({
                     );
                 })}
             </div>
+
+            {isYourTurn && (
+                <div className="pointer-events-auto fixed bottom-2 right-2 z-[700] flex flex-col items-end gap-1 sm:bottom-3 sm:right-3">
+                    {actionHint && (
+                        <span
+                            className={`max-w-[10rem] truncate rounded px-2 py-0.5 text-right text-[10px] font-medium shadow sm:max-w-[12rem] sm:text-xs ${
+                                validationHint
+                                    ? "bg-red-600/90 text-white"
+                                    : "bg-amber-500/90 text-white"
+                            }`}
+                        >
+                            {actionHint}
+                        </span>
+                    )}
+                    <div className="flex items-center gap-2">
+                        {hasSelection && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={clearSelection}
+                                className="h-10 w-10 shrink-0 rounded-full border-white/25 bg-black/70 text-white hover:bg-black/90 sm:h-9 sm:w-9"
+                                aria-label="Clear selection"
+                                title="Clear selection"
+                            >
+                                <RotateCcw className="h-4 w-4" />
+                            </Button>
+                        )}
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={handlePlay}
+                            disabled={!canPlay}
+                            className={`h-10 min-w-10 shrink-0 gap-1.5 rounded-full px-4 text-xs font-bold sm:h-9 sm:min-w-9 sm:px-3.5 ${
+                                canPlay
+                                    ? "bg-green-600 text-white hover:bg-green-500"
+                                    : "bg-white/15 text-white/40"
+                            }`}
+                            aria-label={
+                                selectedCards.length > 1
+                                    ? `Play ${selectedCards.length} cards`
+                                    : "Play selected card"
+                            }
+                        >
+                            <Play className="h-4 w-4 fill-current" />
+                            {selectedCards.length > 1
+                                ? `×${selectedCards.length}`
+                                : "Play"}
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

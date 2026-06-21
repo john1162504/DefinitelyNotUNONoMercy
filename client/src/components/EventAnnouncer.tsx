@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GameEvent } from "@/types";
 import type { TimedGameEvent } from "@/pages/RoomPage";
 
 const TOAST_MS = 2800;
+const MAX_VISIBLE_TOASTS = 3;
 
 function formatEvent(event: GameEvent): string | null {
     const actor = event.actorName ?? "A player";
@@ -37,7 +38,17 @@ interface EventAnnouncerProps {
 }
 
 export default function EventAnnouncer({ event }: EventAnnouncerProps) {
-    const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
+    const [toasts, setToasts] = useState<{ id: number; message: string }[]>(
+        [],
+    );
+    const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+    useEffect(() => {
+        return () => {
+            timersRef.current.forEach(clearTimeout);
+            timersRef.current.clear();
+        };
+    }, []);
 
     useEffect(() => {
         if (!event) return;
@@ -45,24 +56,27 @@ export default function EventAnnouncer({ event }: EventAnnouncerProps) {
         if (!message) return;
 
         const id = event.eventId;
-        setToasts((prev) =>
-            prev.some((t) => t.id === id) ? prev : [...prev, { id, message }],
-        );
+        setToasts((prev) => {
+            if (prev.some((t) => t.id === id)) return prev;
+            const next = [...prev, { id, message }];
+            return next.slice(-MAX_VISIBLE_TOASTS);
+        });
 
         const timer = setTimeout(() => {
             setToasts((prev) => prev.filter((t) => t.id !== id));
+            timersRef.current.delete(timer);
         }, TOAST_MS);
-        return () => clearTimeout(timer);
+        timersRef.current.add(timer);
     }, [event?.eventId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (toasts.length === 0) return null;
 
     return (
-        <div className="pointer-events-none fixed left-1/2 top-28 sm:top-36 z-[120] flex w-full max-w-[92vw] -translate-x-1/2 flex-col items-center gap-1.5 sm:gap-2">
+        <div className="flex w-full flex-col gap-1">
             {toasts.map((toast) => (
                 <div
                     key={toast.id}
-                    className="animate-in fade-in slide-in-from-top-2 max-w-full truncate rounded-xl border border-purple-300 sm:border-2 bg-purple-600/95 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-semibold text-white shadow-lg"
+                    className="animate-in fade-in slide-in-from-left-1 max-w-full truncate rounded-md border border-purple-300/80 bg-purple-600/95 px-2 py-1 text-[10px] font-semibold text-white shadow-md sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-xs"
                 >
                     {toast.message}
                 </div>

@@ -71,7 +71,7 @@ export const CARD_INFO: Record<Value, CardInfo> = {
     colorRoulette: {
         name: "Color Roulette",
         description:
-            "Choose a color; the next player keeps drawing cards until they draw that color, then their turn ends.",
+            "Choose a color; the next player keeps drawing cards until they draw that color, then their turn ends. Only one may be played at a time and it cannot respond to a draw stack.",
     },
 };
 

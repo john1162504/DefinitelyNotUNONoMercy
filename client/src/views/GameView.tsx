@@ -10,6 +10,7 @@ import EventAnnouncer from "@/components/EventAnnouncer";
 import { getSessionId } from "@/socket/socket";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 import getSocket from "@/socket/socket";
 
 interface GameViewProps {
@@ -42,6 +43,7 @@ export default function GameView({
     const [turnSecondsLeft, setTurnSecondsLeft] = useState<number | null>(
         null,
     );
+    const [tableWidth, setTableWidth] = useState(800);
 
     const unoChallenge = gameState.unoChallenge;
     const unoTarget = unoChallenge
@@ -81,46 +83,59 @@ export default function GameView({
     return (
         <>
             <RouletteOverlay event={latestEvent ?? null} />
-            <EventAnnouncer event={latestEvent ?? null} />
 
-            {gameState.pendingDrawCount ? (
-                <DrawStackBanner
-                    pendingDrawCount={gameState.pendingDrawCount}
-                    minimumDrawValue={gameState.minimumDrawValue}
-                    isYourTurn={isYourTurn}
-                    currentPlayerName={currentPlayer?.name}
-                />
-            ) : null}
+            <div
+                className="pointer-events-none fixed left-1.5 top-1.5 z-[120] flex max-h-[38vh] w-[min(240px,44vw)] flex-col gap-1 overflow-y-auto sm:left-2 sm:top-2 sm:w-[min(280px,36vw)] sm:gap-1.5 md:w-72"
+                aria-live="polite"
+            >
+                {isYourTurn ? (
+                    <div className="rounded-md border border-green-300/80 bg-green-600/95 px-2 py-1 text-[10px] font-bold text-white shadow-md sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-xs">
+                        ✓ Your turn
+                        {turnSecondsLeft !== null && turnSecondsLeft > 0 && (
+                            <span className="ml-1 font-normal text-green-100">
+                                ({turnSecondsLeft}s)
+                            </span>
+                        )}
+                    </div>
+                ) : currentPlayer ? (
+                    <div className="truncate rounded-md border border-blue-300/80 bg-blue-600/95 px-2 py-1 text-[10px] font-semibold text-white shadow-md sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-xs">
+                        🎮 {currentPlayer.name}&apos;s turn
+                    </div>
+                ) : null}
 
-            {gameState.activeColor && (
-                <div className="fixed top-14 left-2 sm:top-20 sm:left-4 z-40">
+                {gameState.pendingDrawCount ? (
+                    <DrawStackBanner
+                        pendingDrawCount={gameState.pendingDrawCount}
+                        minimumDrawValue={gameState.minimumDrawValue}
+                        isYourTurn={isYourTurn}
+                        currentPlayerName={currentPlayer?.name}
+                    />
+                ) : null}
+
+                {gameState.activeColor ? (
                     <ActiveColorIndicator activeColor={gameState.activeColor} />
-                </div>
-            )}
+                ) : null}
 
-            {isYourTurn && (
-                <div className="fixed top-2 sm:top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-1.5 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl shadow-2xl z-40 font-bold text-xs sm:text-lg animate-pulse border border-green-300 sm:border-2 whitespace-nowrap">
-                    ✓ It's your turn!
-                    {turnSecondsLeft !== null && turnSecondsLeft > 0 && (
-                        <span className="ml-1 sm:ml-2 text-green-100">
-                            ({turnSecondsLeft}s)
-                        </span>
-                    )}
-                </div>
-            )}
+                {!mustPickSwap && pendingSwaps > 0 && swapActor ? (
+                    <div className="truncate rounded-md border border-purple-300/80 bg-purple-600/95 px-2 py-1 text-[10px] font-semibold text-white shadow-md sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-xs">
+                        {swapActor.name} is choosing a hand to swap…
+                    </div>
+                ) : null}
 
-            {!isYourTurn && currentPlayer && (
-                <div className="fixed top-2 sm:top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-1.5 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl shadow-2xl z-40 font-semibold text-xs sm:text-base border border-blue-300 sm:border-2 whitespace-nowrap max-w-[60vw] truncate">
-                    🎮 <span className="font-bold">{currentPlayer.name}</span>'s
-                    turn
-                </div>
-            )}
+                <EventAnnouncer event={latestEvent ?? null} />
 
-            {!isYourTurn && (
-                <div className="fixed bottom-28 sm:bottom-32 left-1/2 -translate-x-1/2 text-gray-300 text-xs sm:text-sm z-30 whitespace-nowrap">
-                    Waiting for {currentPlayer?.name ?? "next player"}…
-                </div>
-            )}
+                {hand.length === 2 && isYourTurn && !unoChallenge ? (
+                    <div className="rounded-md border border-amber-400/60 bg-amber-500/20 px-2 py-1 text-[10px] font-semibold text-amber-200 shadow-md sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-xs">
+                        Hit UNO after your next card!
+                    </div>
+                ) : null}
+
+                {!isYourTurn ? (
+                    <div className="truncate text-[10px] text-gray-400 sm:text-xs">
+                        Waiting for {currentPlayer?.name ?? "next player"}…
+                    </div>
+                ) : null}
+            </div>
 
             {mustPickSwap && onSwapHands && (
                 <HandSwapPicker
@@ -131,51 +146,31 @@ export default function GameView({
                 />
             )}
 
-            {!mustPickSwap && pendingSwaps > 0 && swapActor && (
-                <div className="fixed top-16 sm:top-24 left-1/2 -translate-x-1/2 bg-purple-600 text-white px-3 py-1.5 sm:px-6 sm:py-3 rounded-xl shadow-lg z-40 font-semibold text-xs sm:text-base whitespace-nowrap max-w-[80vw] truncate text-center">
-                    {swapActor.name} is choosing a hand to swap…
-                </div>
-            )}
-
             {unoChallenge && unoTarget && (
                 <UnoChallengeButton
                     xPercent={unoChallenge.xPercent}
                     yPercent={unoChallenge.yPercent}
                     targetName={unoTarget.name}
                     isTarget={unoChallenge.playerId === sessionId}
+                    tableWidth={tableWidth}
                     onPress={handleCallUno}
                 />
             )}
 
-            {hand.length === 2 && isYourTurn && !unoChallenge && (
-                <div className="fixed bottom-44 sm:bottom-48 left-1/2 -translate-x-1/2 text-amber-400 text-xs sm:text-sm font-semibold z-30 whitespace-nowrap text-center max-w-[90vw]">
-                    After your next card, hit UNO before anyone else!
-                </div>
-            )}
-
-            <div className="fixed top-2 right-2 sm:top-4 sm:right-4 z-40 flex gap-1.5 sm:gap-2">
+            <div className="fixed right-1.5 top-1.5 z-40 sm:right-2 sm:top-2">
                 <Button
                     variant="outline"
-                    onClick={() =>
-                        window.open(
-                            `${import.meta.env.BASE_URL}rules`,
-                            "_blank",
-                        )
-                    }
-                    className="h-8 px-2 text-xs sm:h-9 sm:px-4 sm:text-sm"
-                >
-                    How to play
-                </Button>
-                <Button
-                    variant="outline"
+                    size="icon"
                     onClick={onLeave}
-                    className="h-8 px-2 text-xs sm:h-9 sm:px-4 sm:text-sm"
+                    className="h-7 w-7 border-white/20 bg-black/40 text-white hover:bg-black/60 sm:h-8 sm:w-8"
+                    aria-label="Leave game"
+                    title="Leave game"
                 >
-                    Leave Game
+                    <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
             </div>
 
-            <div className="fixed inset-0 z-30 flex h-[100dvh] w-full flex-col overflow-hidden px-2 pb-2 pt-16 sm:pt-20">
+            <div className="fixed inset-0 z-30 flex h-[100dvh] w-full flex-col overflow-hidden px-1 pb-1 pt-1 sm:px-2 sm:pb-2 sm:pt-2">
                 <div className="flex min-h-0 w-full flex-1 items-stretch justify-center">
                     <div className="relative flex h-full min-h-0 w-full max-w-5xl flex-col">
                         <GameTable
@@ -188,6 +183,7 @@ export default function GameView({
                             canAct={isYourTurn && !mustPickSwap}
                             onPlayCard={onPlayCard}
                             onTakeDraw={onTakeDraw}
+                            onTableSizeChange={setTableWidth}
                         />
                     </div>
                 </div>

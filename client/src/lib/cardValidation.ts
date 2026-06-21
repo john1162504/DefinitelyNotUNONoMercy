@@ -9,6 +9,29 @@ const DRAW_CARD_STRENGTH: Record<string, number> = {
     "+10": 10,
 };
 
+const COLOR_ROULETTE_VALUE = "colorRoulette";
+
+function validateColorRoulettePlay(
+    cards: Card[],
+    pendingDrawCount?: number,
+): { valid: boolean; reason?: string } {
+    const hasRoulette = cards.some((c) => c.value === COLOR_ROULETTE_VALUE);
+    if (!hasRoulette) return { valid: true };
+    if (cards.length > 1) {
+        return {
+            valid: false,
+            reason: "Only one Color Roulette can be played at a time",
+        };
+    }
+    if (pendingDrawCount && pendingDrawCount > 0) {
+        return {
+            valid: false,
+            reason: "Color Roulette cannot respond to a draw stack",
+        };
+    }
+    return { valid: true };
+}
+
 export function canPlayCards(
     cards: Card[],
     gameState: GameState,
@@ -32,9 +55,16 @@ export function canPlayCards(
         }
     }
 
-    // While a draw stack is active, any equal-or-higher draw card may be
-    // stacked regardless of color/value match. Check strength first and skip
-    // the normal first-card color/value match.
+    const rouletteCheck = validateColorRoulettePlay(
+        cards,
+        gameState.pendingDrawCount,
+    );
+    if (!rouletteCheck.valid) {
+        return rouletteCheck;
+    }
+
+    // Draw-stack responses: equal-or-higher draw cards only. A wild reverse+4
+    // stack also requires matching activeColor for equal-strength +4 plays.
     if (gameState.pendingDrawCount) {
         if (!cards.every((c) => DRAW_CARD_VALUES.includes(c.value))) {
             return {
@@ -45,14 +75,36 @@ export function canPlayCards(
 
         if (gameState.minimumDrawValue) {
             const minStrength = DRAW_CARD_STRENGTH[gameState.minimumDrawValue];
-            const isHigher = cards.every(
+            const isEqualOrHigher = cards.every(
                 (c) => (DRAW_CARD_STRENGTH[c.value] ?? 0) >= minStrength,
             );
-            if (!isHigher) {
+            if (!isEqualOrHigher) {
                 return {
                     valid: false,
                     reason: `Must play ${gameState.minimumDrawValue} or higher`,
                 };
+            }
+
+            if (
+                gameState.minimumDrawValue === "reverse+4" &&
+                gameState.activeColor
+            ) {
+                const allEqualStrength = cards.every(
+                    (c) => DRAW_CARD_STRENGTH[c.value] === minStrength,
+                );
+                if (allEqualStrength) {
+                    const colorOk = cards.every((c) =>
+                        c.color === "wild"
+                            ? chosenColor === gameState.activeColor
+                            : c.color === gameState.activeColor,
+                    );
+                    if (!colorOk) {
+                        return {
+                            valid: false,
+                            reason: `Must play +4 in ${gameState.activeColor} or a higher draw card`,
+                        };
+                    }
+                }
             }
         }
 
@@ -95,16 +147,38 @@ export function canSelectCards(
         if (!cards.every((c) => c.value === cards[0].value)) return false;
     }
 
-    // Stacking only depends on draw-card strength, not color/value match.
+    if (!validateColorRoulettePlay(cards, gameState.pendingDrawCount).valid) {
+        return false;
+    }
+
     if (gameState.pendingDrawCount) {
         if (!cards.every((c) => DRAW_CARD_VALUES.includes(c.value))) {
             return false;
         }
         if (gameState.minimumDrawValue) {
             const minStrength = DRAW_CARD_STRENGTH[gameState.minimumDrawValue];
-            return cards.every(
+            const isEqualOrHigher = cards.every(
                 (c) => (DRAW_CARD_STRENGTH[c.value] ?? 0) >= minStrength,
             );
+            if (!isEqualOrHigher) {
+                return false;
+            }
+
+            if (
+                gameState.minimumDrawValue === "reverse+4" &&
+                gameState.activeColor
+            ) {
+                const allEqualStrength = cards.every(
+                    (c) => DRAW_CARD_STRENGTH[c.value] === minStrength,
+                );
+                if (allEqualStrength) {
+                    return cards.every(
+                        (c) =>
+                            c.color === "wild" ||
+                            c.color === gameState.activeColor,
+                    );
+                }
+            }
         }
         return true;
     }
@@ -123,6 +197,12 @@ export function canSelectCard(
     selectedCards: Card[],
     gameState: GameState,
 ): boolean {
+    if (card.value === COLOR_ROULETTE_VALUE && selectedCards.length > 0) {
+        return false;
+    }
+    if (selectedCards.some((c) => c.value === COLOR_ROULETTE_VALUE)) {
+        return false;
+    }
     if (selectedCards.length === 0) {
         return canSelectCards([card], gameState);
     }

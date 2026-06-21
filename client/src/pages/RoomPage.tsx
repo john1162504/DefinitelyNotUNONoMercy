@@ -334,10 +334,10 @@ function RoomPage() {
     }
 
     return (
-        <main className="min-h-screen w-full overflow-y-auto">
+        <main className="h-[100dvh] w-full overflow-hidden">
             {errorToast}
 
-            <div className="flex min-h-screen items-center justify-center px-4 py-6">
+            <div className="flex h-full items-center justify-center px-3 py-3 sm:px-4 sm:py-4 landscape:px-3 landscape:py-2">
                 <LobbyView
                     roomState={memoisedRoomState!}
                     roomId={roomId || ""}

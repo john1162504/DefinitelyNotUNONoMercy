@@ -133,6 +133,51 @@ function handleRoomSockets(io: Server, socket: Socket) {
         console.log(`Room ${roomId}: Game started`);
     });
 
+    socket.on(
+        "update_room_rules",
+        ({
+            roomId,
+            gameRule,
+        }: {
+            roomId: string;
+            gameRule: GameRule;
+        }) => {
+            const roomState = roomStates[roomId];
+
+            if (!roomState) {
+                socket.emit("error", { message: "Room not found" });
+                return;
+            }
+
+            if (roomState.host !== socket.data.sessionId) {
+                socket.emit("error", {
+                    message: "Only the host can edit room rules",
+                });
+                return;
+            }
+
+            if (roomState.isStarted) {
+                socket.emit("error", {
+                    message: "Cannot change rules after the game has started",
+                });
+                return;
+            }
+
+            if (
+                gameRule.numOfDrawSix < 0 ||
+                gameRule.numOfDrawTen < 0 ||
+                (gameRule.secondsPerRound ?? 30) < 5
+            ) {
+                socket.emit("error", { message: "Invalid rule values" });
+                return;
+            }
+
+            roomState.rule = normalizeGameRule(gameRule);
+            io.to(roomId).emit("room_update", roomState);
+            console.log(`Room ${roomId}: rules updated by host`);
+        },
+    );
+
     socket.on("leaving_room", ({ roomId, playerName }) => {
         console.log(`🚪 ${playerName} left room ${roomId}`);
 

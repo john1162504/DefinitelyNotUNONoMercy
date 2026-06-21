@@ -52,6 +52,8 @@ export default function CenterPile({
     const arrow = Math.max(18, Math.round(cardW * 0.6));
     const playedH = cardW * 0.95;
     const playedOverlap = Math.round(cardW * 0.32);
+    const highlightRing = Math.max(2, Math.round(cardW * 0.08));
+    const colorDotSize = Math.max(12, Math.round(cardW * 0.22));
 
     return (
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-20">
@@ -94,53 +96,46 @@ export default function CenterPile({
                 )}
             </div>
             <div className="flex items-center" style={{ gap: `${gap}px` }}>
-                <div
-                    className={`group ${canDraw ? "cursor-pointer" : "cursor-not-allowed opacity-50"} ${
-                        highlightDraw
-                            ? "ring-4 ring-orange-400 rounded-lg animate-pulse"
-                            : ""
-                    }`}
-                    onClick={() => {
-                        if (canDraw) onTakeDraw?.(1);
-                    }}
-                >
-                    <Card
-                        className="flex items-center justify-center p-0 relative group-hover:scale-110 transition-transform"
-                        style={{ width: `${cardW}px`, height: `${cardH}px` }}
+                <div className="flex flex-col items-center">
+                    <div
+                        className={`relative rounded-lg transition-transform ${
+                            canDraw ? "cursor-pointer hover:scale-110" : "cursor-not-allowed opacity-50"
+                        } ${highlightDraw ? "animate-pulse" : ""}`}
+                        style={{
+                            width: `${cardW}px`,
+                            height: `${cardH}px`,
+                            boxShadow: highlightDraw
+                                ? `0 0 0 ${highlightRing}px rgb(251 146 60), 0 0 ${highlightRing * 3}px rgba(251, 146, 60, 0.45)`
+                                : undefined,
+                        }}
+                        onClick={() => {
+                            if (canDraw) onTakeDraw?.(1);
+                        }}
                     >
-                        <img
-                            src={CARD_BACK_PATH}
-                            alt="Deck"
-                            className="w-full h-full object-contain"
-                            draggable={false}
-                        />
-                        {deckCount > 0 && (
-                            <span className="absolute bottom-1 left-2 text-xs font-bold bg-white/80 px-1 rounded">
-                                {deckCount}
-                            </span>
-                        )}
-                    </Card>
+                        <Card className="relative flex h-full w-full items-center justify-center p-0">
+                            <img
+                                src={CARD_BACK_PATH}
+                                alt="Deck"
+                                className="h-full w-full object-contain"
+                                draggable={false}
+                            />
+                            {deckCount > 0 && (
+                                <span className="absolute bottom-1 left-2 rounded bg-white/80 px-1 text-xs font-bold">
+                                    {deckCount}
+                                </span>
+                            )}
+                        </Card>
+                    </div>
                     <p
-                        className={`text-xs text-center mt-1 font-semibold ${
-                            canDraw
-                                ? "text-gray-600 group-hover:text-blue-600"
-                                : "text-gray-400"
+                        className={`pointer-events-none mt-1 text-center text-xs font-semibold ${
+                            canDraw ? "text-gray-600" : "text-gray-400"
                         }`}
                     >
                         {canDraw ? "Click to Draw" : "Not your turn"}
                     </p>
                 </div>
                 <div className="group relative">
-                    {activeColor && (
-                        <div
-                            className="absolute -inset-2 rounded-lg pointer-events-none"
-                            style={{
-                                boxShadow: `0 0 0 4px ${activeColor}, 0 0 16px ${activeColor}`,
-                            }}
-                            aria-hidden
-                        />
-                    )}
-                    <div className="pointer-events-none absolute bottom-full left-1/2 z-[600] mb-2 w-44 -translate-x-1/2 rounded-lg bg-gray-900/95 px-3 py-2 text-left opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-[600] mb-2 hidden w-44 -translate-x-1/2 rounded-lg bg-gray-900/95 px-3 py-2 text-left opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
                         <div className="text-xs font-bold text-white">
                             {getCardInfo(topDiscard.value).name}
                         </div>
@@ -148,25 +143,38 @@ export default function CenterPile({
                             {getCardInfo(topDiscard.value).description}
                         </div>
                     </div>
-                    <Card
-                        className="flex items-center justify-center p-0 relative z-20"
-                        style={{ width: `${cardW}px`, height: `${cardH}px` }}
+                    <div
+                        className="relative rounded-lg"
+                        style={{
+                            width: `${cardW}px`,
+                            height: `${cardH}px`,
+                            boxShadow: activeColor
+                                ? `0 0 0 ${highlightRing}px ${activeColor}, 0 0 ${highlightRing * 4}px ${activeColor}`
+                                : undefined,
+                        }}
                     >
-                        <img
-                            src={cardImgPath(topDiscard)}
-                            alt="Top discard"
-                            title={`${getCardInfo(topDiscard.value).name} — ${getCardInfo(topDiscard.value).description}`}
-                            className="w-full h-full object-contain"
-                            draggable={false}
-                        />
-                        {activeColor && topDiscard.color === "wild" && (
-                            <span
-                                className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full border-2 border-white shadow"
-                                style={{ backgroundColor: activeColor }}
-                                title={`Active: ${activeColor}`}
+                        <Card className="relative flex h-full w-full items-center justify-center p-0">
+                            <img
+                                src={cardImgPath(topDiscard)}
+                                alt="Top discard"
+                                title={`${getCardInfo(topDiscard.value).name} — ${getCardInfo(topDiscard.value).description}`}
+                                className="h-full w-full object-contain"
+                                draggable={false}
                             />
-                        )}
-                    </Card>
+                            {activeColor && topDiscard.color === "wild" && (
+                                <span
+                                    className="absolute left-1/2 -translate-x-1/2 rounded-full border-2 border-white shadow"
+                                    style={{
+                                        backgroundColor: activeColor,
+                                        width: `${colorDotSize}px`,
+                                        height: `${colorDotSize}px`,
+                                        bottom: `-${Math.round(colorDotSize * 0.35)}px`,
+                                    }}
+                                    title={`Active: ${activeColor}`}
+                                />
+                            )}
+                        </Card>
+                    </div>
                 </div>
             </div>
         </div>

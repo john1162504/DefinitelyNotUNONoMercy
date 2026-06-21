@@ -5,7 +5,6 @@ interface PlayerSeatProps {
     isYou: boolean;
     isHost: boolean;
     isCurrentTurn?: boolean;
-    cardCount?: number;
     xPercent?: number;
     yPercent?: number;
     /** Avatar diameter in px; scales the whole seat. */
@@ -28,7 +27,6 @@ function PlayerSeat({
     isYou,
     isHost,
     isCurrentTurn,
-    cardCount,
     xPercent,
     yPercent,
     diameter = 64,
@@ -91,14 +89,6 @@ function PlayerSeat({
             >
                 {name}
             </span>
-            {cardCount !== undefined && (
-                <span
-                    className="mt-1 font-bold bg-blue-500 text-white px-1.5 rounded-full"
-                    style={{ fontSize: `${badgeFontSize}px` }}
-                >
-                    {cardCount}
-                </span>
-            )}
         </div>
     );
 }

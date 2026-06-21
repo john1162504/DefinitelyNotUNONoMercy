@@ -67,7 +67,7 @@ After playing Discard All, all remaining cards in your hand of **that color** ar
 
 ### Color Roulette
 
-The next player draws until they draw the color you chose; then their turn ends.
+The next player draws until they draw the color you chose; then their turn ends. Only one Color Roulette may be played at a time, and it cannot respond to an active draw stack.
 
 ### Starting discard
 

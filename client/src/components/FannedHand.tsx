@@ -36,6 +36,9 @@ const FannedHand: React.FC<FannedHandProps> = ({
     const cardHeight = cardWidth * CARD_HEIGHT_RATIO;
     const arcRadius = tableWidth * ARC_RADIUS_RATIO;
     const marginPx = tableWidth * marginRatio;
+    const badgeFontSize = Math.max(9, Math.min(14, cardWidth * 0.35));
+    const badgePaddingX = Math.max(4, cardWidth * 0.12);
+    const badgePaddingY = Math.max(1, cardWidth * 0.04);
 
     // Angle to centre
     const dx = 50 - xPercent;
@@ -109,6 +112,17 @@ const FannedHand: React.FC<FannedHandProps> = ({
                     }}
                 />
             ))}
+            <span
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-bold rounded-full bg-blue-500 text-white shadow-md"
+                style={{
+                    fontSize: `${badgeFontSize}px`,
+                    padding: `${badgePaddingY}px ${badgePaddingX}px`,
+                    zIndex: numCards + 1,
+                    lineHeight: 1.1,
+                }}
+            >
+                {numCards}
+            </span>
         </div>
     );
 };

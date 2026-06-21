@@ -16,15 +16,15 @@ export default function ActiveColorIndicator({
 }: ActiveColorIndicatorProps) {
     return (
         <div
-            className="flex items-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full bg-black/70 text-white shadow-lg border border-white/20"
+            className="flex w-fit items-center gap-1 rounded-full border border-white/20 bg-black/70 px-1.5 py-0.5 text-white shadow-md sm:gap-1.5 sm:px-2 sm:py-1"
             title={`Active color: ${COLOR_LABELS[activeColor]}`}
         >
             <span
-                className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-white shadow-inner"
+                className="h-3 w-3 rounded-full border border-white shadow-inner sm:h-3.5 sm:w-3.5 sm:border-2"
                 style={{ backgroundColor: activeColor }}
                 aria-label={COLOR_LABELS[activeColor]}
             />
-            <span className="text-xs sm:text-sm font-bold">
+            <span className="text-[10px] font-bold sm:text-xs">
                 {COLOR_LABELS[activeColor]}
             </span>
         </div>

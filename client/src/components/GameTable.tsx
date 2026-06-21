@@ -16,6 +16,7 @@ interface GameTableProps {
     canAct?: boolean;
     onPlayCard?: (cards: Card[]) => void;
     onTakeDraw?: (count: number) => void;
+    onTableSizeChange?: (tableWidth: number) => void;
 }
 
 export default function GameTable({
@@ -27,6 +28,7 @@ export default function GameTable({
     canAct,
     onPlayCard,
     onTakeDraw,
+    onTableSizeChange,
 }: GameTableProps) {
     const mayAct = canAct ?? isYourTurn;
     const sessionId = getSessionId();
@@ -68,6 +70,10 @@ export default function GameTable({
     );
     const ovalHeight = ovalWidth * (9 / 16);
     const seatDiameter = Math.max(30, Math.min(78, ovalWidth * 0.09));
+
+    useEffect(() => {
+        onTableSizeChange?.(ovalWidth);
+    }, [ovalWidth, onTableSizeChange]);
 
     const currentPlayerId =
         gameState.players[gameState.currentPlayerIndex]?.id;
@@ -128,9 +134,6 @@ export default function GameTable({
                                     isHost={player.id === hostId}
                                     isCurrentTurn={
                                         currentPlayerId === player.id
-                                    }
-                                    cardCount={
-                                        gameState.playerCardCounter[player.id]
                                     }
                                     xPercent={xPercent}
                                     yPercent={yPercent}

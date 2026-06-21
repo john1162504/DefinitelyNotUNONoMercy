@@ -3,7 +3,8 @@
     "version": "1.0.0",
     "main": "main.ts",
     "scripts": {
-        "test": "node scripts/simulate-3player.mjs",
+        "test": "npm run test:validation && node scripts/simulate-3player.mjs",
+        "test:validation": "npm run build && node --test dist/game/drawStackValidation.test.js",
         "dev": "ts-node-dev src/main.ts",
         "build": "tsc",
         "start": "node dist/main.js"

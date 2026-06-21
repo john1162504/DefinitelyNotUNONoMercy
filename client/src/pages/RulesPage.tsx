@@ -162,6 +162,8 @@ const SECTIONS: RuleSection[] = [
             <p>
                 The next player draws until they draw the color you chose; then
                 their turn ends. Everyone sees the cards revealed one-by-one.
+                Only <strong>one</strong> Color Roulette may be played at a
+                time, and it cannot be used to respond to an active draw stack.
             </p>
         ),
     },

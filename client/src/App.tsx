@@ -64,7 +64,7 @@ function App() {
                             placeholder="Your name"
                         />
                     </div>
-                    <div className="flex gap-2">
+                    <div>
                         <Input
                             id="roomId"
                             value={roomId}
@@ -79,18 +79,24 @@ function App() {
                             placeholder="Room ID (4 digits)"
                             maxLength={4}
                         />
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2 pt-1">
                         <Button
+                            className="flex-1"
                             onClick={handleJoin}
                             disabled={!playerName.trim() || !roomId.trim()}
                         >
                             Join
                         </Button>
+                        <Button
+                            className="flex-1"
+                            variant="outline"
+                            onClick={handleCreate}
+                        >
+                            Create Room
+                        </Button>
                     </div>
                 </div>
-
-                <Button variant="outline" onClick={handleCreate}>
-                    Create Room
-                </Button>
 
                 <div>
                     <Link

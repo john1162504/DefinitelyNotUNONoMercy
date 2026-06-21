@@ -21,24 +21,23 @@ export default function DrawStackBanner({
 
     return (
         <div
-            className={`fixed top-14 sm:top-20 left-1/2 -translate-x-1/2 px-3 py-2 sm:px-6 sm:py-3 rounded-xl shadow-lg z-40 max-w-[72vw] sm:max-w-md text-center border sm:border-2 ${
+            className={`w-full rounded-md border px-2 py-1 text-[10px] shadow-md sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-xs ${
                 isYourTurn
-                    ? "bg-orange-500 text-white border-orange-300 animate-pulse"
-                    : "bg-amber-100 text-amber-900 border-amber-400"
+                    ? "animate-pulse border-orange-300/80 bg-orange-500 text-white"
+                    : "border-amber-400/80 bg-amber-100 text-amber-900"
             }`}
         >
             {isYourTurn ? (
                 <>
-                    <p className="font-bold text-xs sm:text-base">
-                        Draw stack: {pendingDrawCount} cards
+                    <p className="truncate font-bold">
+                        Draw stack: +{pendingDrawCount} (min {minLabel})
                     </p>
-                    <p className="text-[11px] sm:text-sm mt-0.5 sm:mt-1">
-                        Play {minLabel} or higher to stack, or click the deck
-                        to take all {pendingDrawCount} cards.
+                    <p className="mt-0.5 hidden truncate opacity-90 sm:block">
+                        Stack with {minLabel}+ or take all from deck
                     </p>
                 </>
             ) : (
-                <p className="font-semibold text-xs sm:text-base">
+                <p className="truncate font-semibold">
                     {currentPlayerName} must respond to +{pendingDrawCount}{" "}
                     (min {minLabel})
                 </p>
